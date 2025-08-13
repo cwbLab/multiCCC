@@ -99,6 +99,9 @@ plot_dot <- function( ccc.res , fill = 'p.adj', threshold =  0.05 , colors =  c(
   plot_data$Rank <- plot_data$shape
 
   #plot
+  if( nrow( plot_data ) == 0 ){
+    stop( simpleError( 'No CCCs were retained. Please adjust the filtering threshold.'  ) )
+  }
   p <- ggplot(plot_data, aes(x = Group, y = LR )) +
     geom_point( aes(  fill = -log10( !!sym( fill ) )  , size = LR.score , shape = Rank , stroke = 0.0001 ) , color = 'white'  ) +
     scale_fill_gradientn( colours = colors ) +
