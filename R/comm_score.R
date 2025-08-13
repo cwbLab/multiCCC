@@ -132,7 +132,7 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
     sce_sub <- sce[, meta.data[[sample]] == x ]
     suppressMessages(
       suppressWarnings(
-        liana_res <- liana_wrap( sce_sub,
+        liana_res <- liana::liana_wrap( sce_sub,
                                  idents_col = "celltype",
                                  method = c( "sca"),
                                  resource = resource,
