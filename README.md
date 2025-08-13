@@ -19,7 +19,7 @@
 
 ### 2. Assess the relationship between cell–cell communication events and phenotypes
 	ccc.binary <- multiCCC( data = LRscore , binary.params = list( group = 'Group' , g1 = 'O' , g2 = 'Y'  ) ,threads = 10 )
-	ccc.anova <- multiCCC( data = LRscore , anova.column = 'batch' ,,threads = 10 )
+	ccc.anova <- multiCCC( data = LRscore , anova.column = 'batch' ,threads = 10 )
 	ccc.glm <- multiCCC( data = LRscore , glm.column = 'weight' , threads = 10 )
 	ccc.time <- multiCCC( data = LRscore , time.course.params = list( time  = 'time' , replicate  = 'replicate'  ) ,threads = 10   )
 
