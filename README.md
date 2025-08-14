@@ -1,6 +1,6 @@
 # multiCCC
 `multiCCC` is an R package designed to test the association between cell–cell communication (CCC) and phenotypes across multiple contexts
-![Screenshot](https://github.com/wu-yc/scMetabolism/raw/main/logo.jpg)
+![Screenshot](https://github.com/cwbLab/multiCCC/blob/main/data/pipeline.jpg)
 
 ## Install
     devtools::install_github("cwbLab/multiCCC")
