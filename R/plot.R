@@ -95,7 +95,7 @@ plot_dot <- function( ccc.res , fill = 'p.adj', threshold =  0.05 , colors =  c(
   #
   plot_data$Group <- str_remove_all( plot_data$Group , 'mean.'  )
   plot_data$LR.score <- as.numeric( plot_data$LR.score )
-  plot_data$p.adj <- as.numeric(  plot_data$p.adj  )
+  plot_data[[fill]] <- as.numeric( plot_data[[fill]]  )
   plot_data$Rank <- plot_data$shape
 
   #plot
