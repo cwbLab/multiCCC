@@ -87,8 +87,8 @@ cci_lrscore <- function( exp , meta.data , sample , celltype , lr.database , det
 liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.species,
                            min.cell  , min.prob , threads ){
   #
-  sce <- SingleCellExperiment(
-    assays = list(counts = t(exp)),
+  sce <- SingleCellExperiment::SingleCellExperiment(
+    assays = list(counts = t(as.matrix(exp))),
     metadata = meta.data
   )
   sce$celltype <- meta.data[[ celltype ]] %>% as.character()
