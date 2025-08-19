@@ -49,7 +49,7 @@ get_binary <- function( data , group , g1 , g2, permutation , p.adjust.method , 
 
   } ,mc.cores = threads ) %>% rbindlist() %>% as.data.frame()
 
-  colnames( res ) <- c(  'mean.G1' , 'mean.G2' , 'log2FC' , 'p'  )
+  colnames( res ) <- c(  paste( 'mean',c(g1, g2), sep='.' ) , 'log2FC' , 'p'  )
   rownames(res ) <- rownames( raw.score )
   res$p.adj <- p.adjust(  res$p, method = p.adjust.method )
   res <- cbind(  CCC.ID = rownames(res)    , res  )
