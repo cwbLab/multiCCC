@@ -225,7 +225,7 @@ lr_score <- function( exp,meta.data,sample,celltype,
   lr.genes <- unique(  lr.database$ligand , lr.database$receptor  ) %>% unique()
 
   ###exp,meta.data
-  exp <- exp[,  colnames(exp) %in% lr.genes   ]
+  exp <- exp[,  colnames(exp) %in% lr.genes   ] %>% as.matrix()
   if( !identical( rownames(exp), rownames(meta.data) ) ){
     stop( simpleError( 'Mismatch between row names of exp and meta.data.'  ) )
   }
