@@ -29,8 +29,8 @@ get_database <- function( species  , source ){
 
 #
 cci_lrscore <- function( exp , meta.data , sample , celltype , lr.database , detect_exp ,threads ){
-  samples <-  meta.data %>% pull(sample) %>% unique() %>% as.character()
-  celltypes <- meta.data %>% pull( celltype  ) %>% unique() %>% as.character()
+  samples <-  meta.data[[sample]] %>% unique() %>% as.character()
+  celltypes <- meta.data[[celltype]] %>% unique() %>% as.character()
   #
   all_group <- mclapply( celltypes , function(x){
     temp <- lapply(celltypes, function(y){
@@ -109,8 +109,8 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
   }
 
   #
-  samples <-  meta.data %>% pull(sample) %>% unique() %>% as.character()
-  celltypes <- meta.data %>% pull( celltype  ) %>% unique() %>% as.character()
+  samples <-  meta.data[[sample]] %>% unique() %>% as.character()
+  celltypes <- meta.data[[celltype]] %>% unique() %>% as.character()
   #
   all_group <- mclapply( celltypes , function(x){
     temp <- lapply(celltypes, function(y){
@@ -232,8 +232,9 @@ lr_score <- function( exp,meta.data,sample,celltype,
 
   ###detect
   message( Sys.time() , '\n','Checking the expression profiles of ligands and receptors.'  )
-  samples <-  meta.data %>% pull(sample) %>% unique() %>% as.character()
-  celltypes <-  meta.data %>% pull( celltype  ) %>% unique() %>% as.character()
+  meta.data <- data.frame( meta.data )
+  samples <-  meta.data[[sample]] %>% unique() %>% as.character()
+  celltypes <-  meta.data[[celltype]] %>% unique() %>% as.character()
   detect_exp <- pbmclapply( colnames(exp) ,function(gene){
     level1 <-  lapply(samples, function(m){
       level2 <- lapply(celltypes, function(n){
