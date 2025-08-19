@@ -234,10 +234,10 @@ lr_score <- function( exp,meta.data,sample,celltype,
   meta.data <- data.frame( meta.data )
   samples <-  meta.data[[sample]] %>% unique() %>% as.character()
   celltypes <-  meta.data[[celltype]] %>% unique() %>% as.character()
-  message(  paste0( "Samples: ",paste( sort(samples) ,collapse = ', ' )   )  )
+  message(  paste0( "Samples: ",paste( sort(celltypes) ,collapse = ', ' )   )  )
   message(  paste0( "Cell types: ",paste( sort(celltypes) ,collapse = ', ' )   )  )
 
-  message( Sys.time() , ' | ','Checking the expression profiles of ligands and receptors.'  )
+  message( format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' | ','Checking the expression profiles of ligands and receptors.'  )
 
 
   detect_exp <- pbmclapply( colnames(exp) ,function(gene){
@@ -265,7 +265,7 @@ lr_score <- function( exp,meta.data,sample,celltype,
 
 
   ###LRscore
-  message( Sys.time() , ' | ','Calculating communication strength score (LRscore).'  )
+  message( format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' | ','Calculating communication strength score (LRscore).'  )
   if ( LR.method == 'CCI'  ){
     ccc.res <- cci_lrscore( exp = exp , meta.data = meta.data, sample =  sample , celltype =  celltype,
                             lr.database =lr.database , detect_exp = detect_exp , threads = threads )
@@ -276,7 +276,7 @@ lr_score <- function( exp,meta.data,sample,celltype,
   }
 
   ###output
-  message( Sys.time() , ' | ','Done.'  )
+  message( format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' | ','Done.'  )
   return( list(
     CCC.info = ccc.res$CCC.info,
     LRscore = ccc.res$LRscore,
