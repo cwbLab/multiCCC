@@ -2,7 +2,7 @@
 ###binary
 get_binary <- function( data , group , g1 , g2, permutation , p.adjust.method , threads ){
   #
-  message( Sys.time() , '\n','Performing permutation test.'  )
+  message( Sys.time() , ' | ','Performing permutation test.'  )
 
   #
   new.meta <- data$parameters$meta.data[  , c(  data$parameters$sample  , group   )  ]
@@ -69,7 +69,7 @@ get_binary <- function( data , group , g1 , g2, permutation , p.adjust.method , 
 ###anova
 get_anova <-  function( data , group , p.adjust.method, threads ){
   #
-  message( Sys.time() , '\n','Performing ANOVA test.'  )
+  message( Sys.time() , ' | ','Performing ANOVA test.'  )
 
   #
   new.meta <- data$parameters$meta.data[  , c(  data$parameters$sample  , group   )  ]
@@ -125,7 +125,7 @@ get_anova <-  function( data , group , p.adjust.method, threads ){
 ###glm
 get_glm <- function(  data , group , covariance , p.adjust.method , threads ){
   #
-  message( Sys.time() , '\n','Fitting generalized linear model.'  )
+  message( Sys.time() , ' | ','Fitting generalized linear model.'  )
 
   #
   new.meta <- data$parameters$meta.data[  , c(  data$parameters$sample  , c(group , covariance )  )  ]
@@ -195,7 +195,7 @@ get_glm <- function(  data , group , covariance , p.adjust.method , threads ){
 ###time
 get_time <- function(  data , time , replicate , covariance , p.adjust.method , threads ){
   #
-  message( Sys.time() , '\n','Fitting linear mixed-effects model.'  )
+  message( Sys.time() , ' | ','Fitting linear mixed-effects model.'  )
 
   #
   new.meta <- data$parameters$meta.data[  , c(  data$parameters$sample  , c(time , replicate , covariance )  )  ]
@@ -343,6 +343,7 @@ multiCCC <- function( data , binary.params = NULL ,  anova.column = NULL,
   }
 
   ###
+  message( Sys.time() , ' | ','Done.'  )
   return(  oplist )
 }
 
