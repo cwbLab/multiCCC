@@ -41,7 +41,7 @@ get_binary <- function( data , group , g1 , g2, permutation , p.adjust.method , 
 
       }) %>% as.numeric()
       #
-      pvalue <- (length(which(abs(ps) >= abs(ms))) + 1) / (  permutation + 1 )
+      pvalue <- (length(which(abs(ps) > abs(ms))) + 1) / ( permutation + 1 )
       #
       op = c( g1.mean = g1.mean , g2.mean  = g2.mean , log2fc = log2fc , p = pvalue )
     }
