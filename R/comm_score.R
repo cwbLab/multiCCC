@@ -92,7 +92,7 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
     metadata = meta.data
   )
   sce$celltype <- meta.data[[ celltype ]] %>% as.character()
-  assay(sce, "logcounts") <- counts(sce)
+  sce@assays@data@listData[["logcounts"]] <- sce@assays@data@listData[["counts"]]
   #
   if( LR.species == 'human' ){
     resource <- 'Consensus'
