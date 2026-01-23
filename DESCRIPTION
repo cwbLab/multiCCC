@@ -1,0 +1,31 @@
+Package: multiCCC
+Title: What the Package Does (One Line, Title Case)
+Version: 1.26.1
+Authors@R: 
+    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))
+Description: Based on scRNA-seq technology, test the relationship between cell–cell communication (CCC) and phenotypes across multiple contexts.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Depends: 
+    R (>= 3.5)
+LazyData: true
+Imports:
+	aplot,
+	data.table,
+    dplyr,
+	ggplot2,
+	hms,
+	lmerTest,
+	pbmcapply,
+	parallel,
+	plotthis,
+	presto,
+	reshape2,
+	Seurat,
+	SingleCellExperiment,
+	sjPlot,
+	stringr
+
+	

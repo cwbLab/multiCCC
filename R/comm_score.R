@@ -1,0 +1,620 @@
+
+
+#
+get_database <- function( species  , source ){
+  lrdata = NULL
+  #
+  if ( species == 'human'  ){
+    if ( source  == 'CCI' ){
+      lrdata = get("mutliCCC.human.lr", envir = asNamespace("multiCCC"))
+    }else{
+      lrdata = liana::select_resource(  source   ) %>% data.frame()
+      lrdata = data.frame( l = lrdata[, grepl("source_genesymbol", colnames(lrdata) ) ],
+                           r = lrdata[, grepl("target_genesymbol", colnames(lrdata) ) ]  )
+    }
+  }else if( species == 'mouse' ){
+    if ( source  == 'CCI' ){
+      lrdata = get("mutliCCC.mouse.lr", envir = asNamespace("multiCCC"))
+    }else{
+      lrdata = liana::select_resource(c('MouseConsensus')) %>% data.frame()
+      lrdata = data.frame( l = lrdata$MouseConsensus.source_genesymbol , r = lrdata$MouseConsensus.target_genesymbol )
+    }
+  }
+  #
+  colnames(lrdata) <- c(  'ligand' , 'receptor'  )
+  #
+  return( lrdata )
+
+}
+
+#
+<<<<<<< HEAD
+cci_lrscore <- function( exp , meta.data , sample , celltype , LR.ref, lr.database , detect_exp ,threads ){
+
+  suppressMessages({library(data.table)})
+  #
+=======
+cci_lrscore <- function( exp , meta.data , sample , celltype , lr.database , detect_exp ,threads ){
+>>>>>>> 8c48b23a66e49255cd5c14d2dc1bfa998fe1e706
+  samples <-  meta.data[[sample]] %>% unique() %>% as.character()
+  celltypes <- meta.data[[celltype]] %>% unique() %>% as.character()
+  #
+  all_group <- mclapply( celltypes , function(x){
+    temp <- lapply(celltypes, function(y){
+      op <- data.table(   source  = x ,
+                          target = y,
+                          ligand = lr.database$ligand,
+                          receptor = lr.database$receptor
+
+      )
+      return(op)
+    }) %>% rbindlist()
+  },mc.cores = threads   ) %>% rbindlist() %>% data.frame()
+
+  all_group$st <- paste( all_group$source, all_group$target , sep = '_'  )
+  all_group$st2 <- paste( all_group$source, all_group$target , sep =  rawToChar(as.raw(c(0xE2, 0x86, 0x92)))  )
+  all_group$lr <- paste( all_group$ligand, all_group$receptor , sep = '_'  )
+  all_group$CCC.ID <- paste( all_group$st , all_group$lr , sep = '.' )
+  #
+  score <- pbmclapply( 1:nrow(all_group),function(x){
+    #
+    info <- all_group[x,] %>% unlist() %>% as.character()
+
+    res  <- lapply(samples, function(sam){
+      #detect
+      ld <- subset(detect_exp , sample == sam & celltype == info[1] & gene == info[3]  ) %>% pull(reserved)
+      rd <- subset(detect_exp , sample == sam & celltype == info[2] & gene == info[4]  ) %>% pull(reserved)
+      if(  length( which( c(ld,rd)  == 'Y'  )) != 2  ){
+        LRscore = 0
+      }else{
+        l.ds <- exp[  meta.data[[sample]] == sam & meta.data[[celltype]] == info[1]   ,  info[3]  ] %>% mean()
+        r.ds <- exp[  meta.data[[sample]] == sam & meta.data[[celltype]] == info[2]   ,  info[4]  ] %>% mean()
+        LRscore = ( l.ds * r.ds ) / ( l.ds + r.ds )
+      }
+      #
+      return( LRscore )
+    })
+    #
+    return( data.table( matrix( res , nrow = 1 ) ) )
+
+  } , mc.cores = threads ) %>% rbindlist()
+  score <- setDT(score)
+  score <- data.table::set( score, j = names(score), value = lapply(score, as.numeric) )
+  score <- setDF( score )
+
+  #
+  rownames(score) <- all_group$CCC.ID
+  colnames(score) <- samples
+  score[ is.na(score)  ] <- 0
+  #
+  return(  list( CCC.info = all_group , LRscore = score , LR.ref = LR.ref  )  )
+
+}
+
+
+#
+liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.species,LR.method,LR.ref,
+                           min.cell  , min.prob , threads ){
+  #
+  sce <- SingleCellExperiment::SingleCellExperiment(
+    assays = list(counts = t(as.matrix(exp))),
+    metadata = meta.data
+  )
+  sce$celltype <- meta.data[[ celltype ]] %>% as.character()
+  sce@assays@data@listData[["logcounts"]] <- sce@assays@data@listData[["counts"]]
+  #
+  if( LR.species == 'human' ){
+    resource <- lr.database
+    lr.database <- liana::select_resource( resource  ) %>% as.data.frame()
+    lr.database <- data.frame( ligand = lr.database[, grepl("source_genesymbol", colnames(lr.database) ) ],
+                               receptor = lr.database[, grepl("target_genesymbol", colnames(lr.database) ) ]
+    )
+  }else if( LR.species == 'mouse' ){
+    resource <- 'MouseConsensus'
+    lr.database <- liana::select_resource( resource  ) %>% as.data.frame()
+    lr.database <- data.frame( ligand = lr.database$MouseConsensus.source_genesymbol,
+                               receptor = lr.database$MouseConsensus.target_genesymbol
+    )
+  }
+
+  #
+  samples <-  meta.data[[sample]] %>% unique() %>% as.character()
+  celltypes <- meta.data[[celltype]] %>% unique() %>% as.character()
+  #
+  all_group <- mclapply( celltypes , function(x){
+    temp <- lapply(celltypes, function(y){
+      op <- data.table(   source  = x ,
+                          target = y,
+                          ligand = lr.database$ligand,
+                          receptor = lr.database$receptor
+      )
+      return(op)
+    }) %>% rbindlist()
+  },mc.cores = threads   ) %>% rbindlist() %>% data.frame()
+
+  all_group$st <- paste( all_group$source, all_group$target , sep = '_'  )
+  all_group$st2 <- paste( all_group$source, all_group$target , sep =  rawToChar(as.raw(c(0xE2, 0x86, 0x92)))  )
+  all_group$lr <- paste( all_group$ligand, all_group$receptor , sep = '_'  )
+  all_group$CCC.ID <- paste( all_group$st , all_group$lr , sep = '.' )
+  #
+  LRscore <- pbmclapply(samples, function(x){
+    sce_sub <- sce[, meta.data[[sample]] == x ]
+<<<<<<< HEAD
+
+
+    ###1.SingleCellSignalR
+    if (  LR.method == 'SingleCellSignalR'   ){
+      iserror <-tryCatch({
+        suppressMessages(
+          suppressWarnings(
+            liana_res <- liana::liana_wrap( sce_sub,
+                                            idents_col = "celltype",
+                                            method = c( "sca"),
+                                            resource = resource,
+                                            min_cells = min.cell,
+                                            expr_prop = min.prob,
+                                            assay = 'logcounts',
+                                            assay.type= 'logcounts',
+                                            parallelize =T,  workers = threads
+            )
+          )
+=======
+    suppressMessages(
+      suppressWarnings(
+        liana_res <- liana::liana_wrap( sce_sub,
+                                 idents_col = "celltype",
+                                 method = c( "sca"),
+                                 resource = resource,
+                                 min_cells = min.cell,
+                                 expr_prop = min.prob,
+                                 assay = 'logcounts',
+                                 assay.type= 'logcounts',
+                                 parallelize =T,  workers = threads
+>>>>>>> 8c48b23a66e49255cd5c14d2dc1bfa998fe1e706
+        )
+      },error = function(e){
+        NULL
+      }
+      )
+      #
+      if ( "NULL" %in% class( iserror ) ){  stop( simpleError( paste0( "Failed to evaluate the LR score for the -- ", x , " -- sample using the -- ", LR.method , " -- algorithm. Consider reducing the min.cell, min.exp, and min.prob thresholds." )  ) )  }
+
+      liana_res <- iserror
+      liana_res$st <- paste( liana_res$source, liana_res$target , sep = '_'  )
+      liana_res$lr <- paste( liana_res$ligand, liana_res$receptor , sep = '_'  )
+      liana_res$CCC.ID <- paste( liana_res$st , liana_res$lr , sep = '.' )
+      #
+      myres <- mclapply( all_group$CCC.ID , function(x){
+        op = 0
+        if(  x %in% liana_res$CCC.ID ){ op = liana_res$LRscore[ which( liana_res$CCC.ID == x )  ]   }
+        return( op )
+      }, mc.cores = threads  ) %>% unlist() %>% as.numeric()
+
+    }
+
+
+    ###2.connectome
+    if (  LR.method == 'connectome'   ){
+      iserror <-tryCatch({
+        suppressMessages(
+          suppressWarnings(
+            liana_res <- liana::liana_wrap( sce_sub,
+                                            idents_col = "celltype",
+                                            method = c( "connectome") ,
+                                            resource = resource,
+                                            min_cells = min.cell,
+                                            expr_prop = min.prob,
+                                            assay = 'logcounts',
+                                            assay.type= 'logcounts',
+                                            parallelize =T,  workers = threads
+            )
+          )
+        )
+      },error = function(e){
+        NULL
+      }
+      )
+      #
+      if ( "NULL" %in% class( iserror ) ){  stop( simpleError( paste0( "Failed to evaluate the LR score for the -- ", x , " -- sample using the -- ", LR.method , " -- algorithm. Consider reducing the min.cell, min.exp, and min.prob thresholds." )  ) )  }
+
+      liana_res <- iserror
+      liana_res$st <- paste( liana_res$source, liana_res$target , sep = '_'  )
+      liana_res$lr <- paste( liana_res$ligand, liana_res$receptor , sep = '_'  )
+      liana_res$CCC.ID <- paste( liana_res$st , liana_res$lr , sep = '.' )
+      #
+      myres <- mclapply( all_group$CCC.ID , function(x){
+        op = 0
+        if(  x %in% liana_res$CCC.ID ){ op = liana_res$weight_sc[ which( liana_res$CCC.ID == x )  ]   }
+        return( op )
+      }, mc.cores = threads  ) %>% unlist() %>% as.numeric()
+
+    }
+
+
+    ###3.iTALK
+    if (  LR.method == 'iTALK'   ){
+      iserror <-tryCatch({
+        suppressMessages(
+          suppressWarnings(
+            liana_res <- liana::liana_wrap( sce_sub,
+                                            idents_col = "celltype",
+                                            method = c( "logfc") ,
+                                            resource = resource,
+                                            min_cells = min.cell,
+                                            expr_prop = min.prob,
+                                            assay = 'logcounts',
+                                            assay.type= 'logcounts',
+                                            parallelize =T,  workers = threads
+            )
+          )
+        )
+      },error = function(e){
+        NULL
+      }
+      )
+      #
+      if ( "NULL" %in% class( iserror ) ){  stop( simpleError( paste0( "Failed to evaluate the LR score for the -- ", x , " -- sample using the -- ", LR.method , " -- algorithm. Consider reducing the min.cell, min.exp, and min.prob thresholds." )  ) )  }
+
+      liana_res <- iserror
+      liana_res$st <- paste( liana_res$source, liana_res$target , sep = '_'  )
+      liana_res$lr <- paste( liana_res$ligand, liana_res$receptor , sep = '_'  )
+      liana_res$CCC.ID <- paste( liana_res$st , liana_res$lr , sep = '.' )
+      #
+      myres <- mclapply( all_group$CCC.ID , function(x){
+        op = 0
+        if(  x %in% liana_res$CCC.ID ){ op = liana_res$logfc_comb[ which( liana_res$CCC.ID == x )  ]   }
+        return( op )
+      }, mc.cores = threads  ) %>% unlist() %>% as.numeric()
+
+    }
+
+
+    ###4.NATMI
+    if (  LR.method == 'NATMI'   ){
+      iserror <-tryCatch({
+        suppressMessages(
+          suppressWarnings(
+            liana_res <- liana::liana_wrap( sce_sub,
+                                            idents_col = "celltype",
+                                            method = c( "natmi") ,
+                                            resource = resource,
+                                            min_cells = min.cell,
+                                            expr_prop = min.prob,
+                                            assay = 'logcounts',
+                                            assay.type= 'logcounts',
+                                            parallelize =T,  workers = threads
+            )
+          )
+        )
+      },error = function(e){
+        NULL
+      }
+      )
+      #
+      if ( "NULL" %in% class( iserror ) ){  stop( simpleError( paste0( "Failed to evaluate the LR score for the -- ", x , " -- sample using the -- ", LR.method , " -- algorithm. Consider reducing the min.cell, min.exp, and min.prob thresholds." )  ) )  }
+
+      liana_res <- iserror
+      liana_res$st <- paste( liana_res$source, liana_res$target , sep = '_'  )
+      liana_res$lr <- paste( liana_res$ligand, liana_res$receptor , sep = '_'  )
+      liana_res$CCC.ID <- paste( liana_res$st , liana_res$lr , sep = '.' )
+      #
+      myres <- mclapply( all_group$CCC.ID , function(x){
+        op = 0
+        if(  x %in% liana_res$CCC.ID ){ op = liana_res$prod_weight[ which( liana_res$CCC.ID == x )  ]   }
+        return( op )
+      }, mc.cores = threads  ) %>% unlist() %>% as.numeric()
+
+    }
+
+
+    ###5.CytoTalk
+    if (  LR.method == 'CytoTalk'   ){
+      iserror <-tryCatch({
+        suppressMessages(
+          suppressWarnings(
+            liana_res <- liana::liana_wrap( sce_sub,
+                                            idents_col = "celltype",
+                                            method = c( "cytotalk") ,
+                                            resource = resource,
+                                            min_cells = min.cell,
+                                            expr_prop = min.prob,
+                                            assay = 'logcounts',
+                                            assay.type= 'logcounts',
+                                            parallelize = T,  workers = threads
+            )
+          )
+        )
+      },error = function(e){
+        NULL
+      }
+      )
+      #
+      if ( "NULL" %in% class( iserror ) ){  stop( simpleError( paste0( "Failed to evaluate the LR score for the -- ", x , " -- sample using the -- ", LR.method , " -- algorithm. Consider reducing the min.cell, min.exp, and min.prob thresholds." )  ) )  }
+
+      liana_res <- iserror
+      liana_res$st <- paste( liana_res$source, liana_res$target , sep = '_'  )
+      liana_res$lr <- paste( liana_res$ligand, liana_res$receptor , sep = '_'  )
+      liana_res$CCC.ID <- paste( liana_res$st , liana_res$lr , sep = '.' )
+      #
+      myres <- mclapply( all_group$CCC.ID , function(x){
+        op = 0
+        if(  x %in% liana_res$CCC.ID ){ op = liana_res$crosstalk_score[ which( liana_res$CCC.ID == x )  ]   }
+        return( op )
+      }, mc.cores = threads  ) %>% unlist() %>% as.numeric()
+
+    }
+
+
+    ###6.cellchat
+    if (  LR.method == 'cellchat'   ){
+
+      iserror <-tryCatch({
+        suppressMessages(
+          suppressWarnings(
+            #
+            liana_res <- liana::liana_wrap( sce_sub,
+                                            idents_col = "celltype",
+                                            method = c( "call_cellchat") ,
+                                            resource = resource,
+                                            min_cells = min.cell,
+                                            expr_prop = min.prob,
+                                            assay = 'logcounts',
+                                            assay.type= 'logcounts',
+                                            parallelize = F,  workers = threads,
+                                            cellchat.params = list(  organism = LR.species ,
+                                                                     de_thresh = 2 ,
+                                                                     nboot = 500 ,
+                                                                     ligand.pvalues = 2 ,
+                                                                     receptor.pvalues = 2
+                                            )
+            )
+            #
+          )
+        )
+      },error = function(e){
+        NULL
+      }
+      )
+      #
+      if ( "NULL" %in% class( iserror ) ){  stop( simpleError( paste0( "Failed to evaluate the LR score for the -- ", x , " -- sample using the -- ", LR.method , " -- algorithm. Consider reducing the min.cell, min.exp, and min.prob thresholds." )  ) )  }
+
+      liana_res <- iserror
+      liana_res$st <- paste( liana_res$source, liana_res$target , sep = '_'  )
+      liana_res$lr <- paste( liana_res$ligand, liana_res$receptor , sep = '_'  )
+      liana_res$CCC.ID <- paste( liana_res$st , liana_res$lr , sep = '.' )
+      #
+      myres <- mclapply( all_group$CCC.ID , function(x){
+        op = 0
+        if(  x %in% liana_res$CCC.ID ){ op = liana_res$prob[ which( liana_res$CCC.ID == x )  ]   }
+        return( op )
+      }, mc.cores = threads  ) %>% unlist() %>% as.numeric()
+
+    }
+
+
+    ###7.cellphoneDB
+    if (  LR.method == 'cellphoneDB'   ){
+
+      iserror <-tryCatch({
+        suppressMessages(
+          suppressWarnings(
+            #
+            liana_res <- liana::liana_wrap( sce_sub,
+                                            idents_col = "celltype",
+                                            method = c( "cellphonedb") ,
+                                            resource = resource,
+                                            min_cells = min.cell,
+                                            expr_prop = min.prob,
+                                            assay = 'logcounts',
+                                            assay.type= 'logcounts',
+                                            parallelize = F,  workers = threads,
+                                            cellphonedb.params = list(  score_col = 'LRscore' )
+            )
+            #
+          )
+        )
+      },error = function(e){
+        NULL
+      }
+      )
+      #
+      if ( "NULL" %in% class( iserror ) ){  stop( simpleError( paste0( "Failed to evaluate the LR score for the -- ", x , " -- sample using the -- ", LR.method , " -- algorithm. Consider reducing the min.cell, min.exp, and min.prob thresholds." )  ) )  }
+
+      liana_res <- iserror
+      liana_res$st <- paste( liana_res$source, liana_res$target , sep = '_'  )
+      liana_res$lr <- paste( liana_res$ligand, liana_res$receptor , sep = '_'  )
+      liana_res$CCC.ID <- paste( liana_res$st , liana_res$lr , sep = '.' )
+      #
+      myres <- mclapply( all_group$CCC.ID , function(x){
+        op = 0
+        if(  x %in% liana_res$CCC.ID ){ op = liana_res$lr.mean[ which( liana_res$CCC.ID == x )  ]   }
+        return( op )
+      }, mc.cores = threads  ) %>% unlist() %>% as.numeric()
+
+    }
+
+    ############
+    return(  data.table(   matrix( myres , nrow = 1   )  )  )
+
+  } , mc.cores = threads  ) %>% rbindlist() %>% setDF()
+
+  #########################################################
+  LRscore <- data.table(t(LRscore)) %>% setDF()
+  colnames(LRscore) <- samples
+  rownames(LRscore) <- all_group$CCC.ID
+  #
+  return(  list( CCC.info = all_group , LRscore = LRscore ,  LR.ref = LR.ref  )  )
+
+}
+
+
+
+
+######comm_score
+
+#' Compute LRscore
+#'
+#' @description
+#' Compute cell–cell communication score (LRscore).
+#'
+#' @param exp A matrix object with cells as row names and genes as column names.
+#' @param meta.data A data.frame object whose row names are identical to those of the exp parameter.
+#' @param sample The column name in meta.data that represents the sample ID.
+#' @param celltype The column name in meta.data that represents the cell type.
+#' @param LR.species Species. Options are human or mouse.
+#' @param LR.source Two options:
+#'
+#' (1) Ligand–receptor resource (with CCI or Consensus recommended). Available options include: CCI, Consensus, Baccin2019, CellCall, CellChatDB, Cellinker, CellPhoneDB, CellTalkDB, connectomeDB2020, EMBRACE, Guide2Pharma, HPMR, ICELLNET, iTALK, Kirouac2010, LRdb, Ramilowski2015, OmniPath, and MouseConsensus. For mouse, only the CCI and MouseConsensus options are available.
+#'
+#' (2) A data.frame object can be provided, in which the first column contains ligand gene names and the second column contains receptor gene names.
+#' @param LR.method Method for calculating LR score. Available options include: CCI, SingleCellSignalR, connectome, iTALK, NATMI, CytoTalk, cellchat, and cellphoneDB. Note that cellchat and cellPhoneDB are relatively time-consuming to run.
+#' @param min.cell The minimum number of cells expressing the ligand or receptor.
+#' @param min.exp The minimum expression level of ligands and receptors included in the analysis.
+#' @param min.prob The minimum proportion of cells expressing the ligand and receptor. Note: At least one of min.cell, min.exp, or min.prob must be non-zero.
+#' @param threads Number of cores used for parallel computation. By default, the maximum computing resources are used.
+#'
+#' @returns A list object.
+#' @examples
+#'
+#' data( "CCC.test.data" )
+#'
+#' #1.scoreLR
+#' LRscore <- scoreLR( exp = t( CCC.test.data$exp ) ,
+#'                  meta.data = CCC.test.data$meta ,
+#'                  LR.species = 'human' ,
+#'                  sample = 'orig.ident' ,
+#'                  celltype = 'celltype' )
+#'
+#' @export
+#'
+scoreLR <- function( exp,meta.data,sample,celltype,
+                      LR.species = 'human', LR.source = 'Consensus', LR.method = 'SingleCellSignalR',
+                      min.cell = 10, min.exp = 0.1, min.prob = 0.3,
+                      threads = NULL
+){
+  ###
+  run.start = Sys.time()
+  suppressMessages({
+    library(dplyr)
+    library(pbmcapply)
+    library(data.table)
+    library(stringr)
+    library(parallel)
+    library(Seurat)
+    library(SingleCellExperiment)
+  })
+
+  ###threads
+  if( is.null(threads) ){  threads <- parallel::detectCores()   }
+
+  ###LR.source
+  if(  is.data.frame( LR.source ) ){
+    lr.database <- LR.source
+    colnames( lr.database ) <- c(  'ligand' , 'receptor'  )
+  }else{
+    lr.database <- get_database( species = LR.species , source = LR.source  )
+  }
+  lr.genes <- unique(  lr.database$ligand , lr.database$receptor  ) %>% unique()
+
+  ###exp,meta.data
+  exp <- exp[,  colnames(exp) %in% lr.genes   ] %>% as.matrix()
+  if( !identical( rownames(exp), rownames(meta.data) ) ){
+    stop( simpleError( 'Mismatch between row names of exp and meta.data.'  ) )
+  }
+
+  ###detect
+  meta.data <- data.frame( meta.data )
+  samples <-  meta.data[[sample]] %>% unique() %>% as.character()
+  celltypes <-  meta.data[[celltype]] %>% unique() %>% as.character()
+<<<<<<< HEAD
+  message(  paste(rep( '-' ,100  ) ,collapse = '' )   )
+  message(  paste0( ">>> Samples ( n = ", length(samples) , ' ): ', paste( sort(samples) ,collapse = ', ' )   )  )
+  message(  paste0( ">>> Cell types ( n = ", length( celltypes) , ' ): ', paste( sort(celltypes) ,collapse = ', ' )   )  )
+  message(  paste(rep( '-' ,100  ) ,collapse = '' )   )
+  message( '[Step 1/2 | ', format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' ] ','Checking the expression profiles of ligands and receptors.'  )
+=======
+  message(  paste0( "Samples: ",paste( sort(samples) ,collapse = ', ' )   )  )
+  message(  paste0( "Cell types: ",paste( sort(celltypes) ,collapse = ', ' )   )  )
+
+  message( format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' | ','Checking the expression profiles of ligands and receptors.'  )
+>>>>>>> 8c48b23a66e49255cd5c14d2dc1bfa998fe1e706
+
+
+  detect_exp <- pbmclapply( colnames(exp) ,function(gene){
+    level1 <-  lapply(samples, function(m){
+      level2 <- lapply(celltypes, function(n){
+        ds <- exp[  meta.data[[sample]] == m & meta.data[[celltype]] == n   ,  gene  ]
+        #
+        my.return='N'
+        prob = length(which(ds <= min.exp)) / length(ds)
+        if( length(ds) >= min.cell &  prob >= min.prob   ){
+          my.return = 'Y'
+        }
+        #
+        return(  data.table( matrix( c(sample = m , celltype = n ,
+                                       gene = gene , prob = prob , reserved = my.return ) ,
+                                     nrow =1 )   )   )
+        #
+
+      }) %>% rbindlist()
+
+    }) %>% rbindlist()
+
+  }, mc.cores = threads   ) %>% rbindlist()
+  colnames( detect_exp ) <- c( 'sample' , 'celltype', 'gene', 'prob' ,'reserved'   )
+
+
+  ###LRscore
+<<<<<<< HEAD
+  message( '[Step 2/2 | ', format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' ] ','Calculating communication strength score (LRscore).'  )
+  all_lrDB <- data.frame( used.DB = c( "Consensus","Baccin2019","CellCall","CellChatDB",
+                                       "Cellinker","CellPhoneDB","CellTalkDB","connectomeDB2020",
+                                       "EMBRACE","Guide2Pharma","HPMR","ICELLNET","iTALK","Kirouac2010",
+                                       "LRdb","Ramilowski2015","OmniPath","MouseConsensus" )
+  )
+  all_lrDB$liana_DB <- paste( 'liana' , all_lrDB$used.DB , sep = '_'  )
+  all_lrDB <- rbind(all_lrDB , c( 'CCI' , 'CCI' )  )
+
+=======
+  message( format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' | ','Calculating communication strength score (LRscore).'  )
+>>>>>>> 8c48b23a66e49255cd5c14d2dc1bfa998fe1e706
+  if ( LR.method == 'CCI'  ){
+    if(  is.data.frame( LR.source ) ){ LR.ref <- 'custom' }else{ LR.ref <- all_lrDB$liana_DB[ all_lrDB$used.DB == LR.source ]   }
+    suppressMessages(
+      suppressWarnings(
+        ccc.res <- cci_lrscore( exp = exp , meta.data = meta.data, sample =  sample , celltype =  celltype, LR.ref = LR.ref,
+                                lr.database =lr.database , detect_exp = detect_exp , threads = threads )
+      )
+    )
+  }else{
+    if(  is.data.frame( LR.source ) ){ LR.source <- 'Consensus' }
+    LR.ref <- all_lrDB$liana_DB[ all_lrDB$used.DB == LR.source ]
+
+    suppressMessages(
+      suppressWarnings(
+        ccc.res <- liana_lrscore( exp = exp , meta.data = meta.data, sample =  sample , celltype =  celltype,
+                                  lr.database = LR.source , LR.species = LR.species,  LR.method = LR.method ,LR.ref = LR.ref,
+                                  min.cell = min.cell  , min.prob = min.prob , threads = threads )
+      )
+    )
+  }
+
+  ###output
+<<<<<<< HEAD
+  run.end = Sys.time()
+  message( '[ ', format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' ] ','Done. Total runtime: ', hms::as_hms( as.numeric( run.end - run.start, units = "secs") ) ,'.' )
+  #
+=======
+  message( format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' | ','Done.'  )
+>>>>>>> 8c48b23a66e49255cd5c14d2dc1bfa998fe1e706
+  return( list(
+    CCC.info = ccc.res$CCC.info,
+    LRscore = ccc.res$LRscore,
+    parameters = list(
+      exp = exp ,meta.data = meta.data ,sample = sample,celltype = celltype,
+      LR.species = LR.species, LR.source =  ccc.res$LR.ref, LR.method = LR.method,
+      min.cell = min.cell, min.exp = min.exp, min.prob = min.prob,
+      threads = threads
+    )
+  ) )
+}
