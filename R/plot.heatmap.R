@@ -18,10 +18,10 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
     library( sjPlot  )
     library( aplot )
   })
-
+  
   if(  data.used == 'filtered.result'  ){  ccc.res$result <- ccc.res$filtered.result  }
   ccc.res$result <- ccc.res$result[ !is.na( ccc.res$result$p ) , ]
-
+  
   #filter1
   filter_res1 <- ccc.res$result
   if ( fill == 'p'  ){
@@ -29,7 +29,7 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
   }else{
     filter_res1 <- filter_res1[ filter_res1$p.adj <  threshold , ]
   }
-
+  
   #filter2
   filter_res2 <- ccc.res$parameters$data$CCC.info
   if( !is.null(ligand) ){  filter_res2 <- filter_res2[   filter_res2$ligand %in% ligand ,  ]    }
@@ -37,25 +37,25 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
   if( !is.null(sender) ){  filter_res2 <- filter_res2[   filter_res2$source %in% sender ,  ]   }
   if( !is.null(receiver) ){  filter_res2 <- filter_res2[   filter_res2$target %in% receiver ,  ]    }
   if( !is.null(CCC.ID) ){  filter_res2 <- filter_res2[   filter_res2$CCC.ID %in% CCC.ID ,  ]    }
-
+  
   #final data
   final_res <- filter_res1[ filter_res1$CCC.ID %in% filter_res2$CCC.ID  ,  ]
   if( nrow( final_res ) == 0  ){ stop(simpleError( 'No data were retained. Please adjust the filtering thresholds.' )  )    }
-
+  
   #plot data
   plot_data <- final_res[  , str_detect(colnames(final_res)  , 'mean'  ) ]
   plot_data <- cbind(plot_data , final_res[ ,c( 'CCC.ID' , fill ) ]  )
-
+  
   plot_data <- reshape2::melt( plot_data , id.vars =c('CCC.ID',fill))
   colnames(plot_data)[3] <- 'Group'
   colnames( plot_data )[4] <- 'LR.score'
   plot_data$Group2 <- str_remove( plot_data$Group , '^mean.'   )
-
+  
   #stat
   ids <- unique( plot_data$CCC.ID  )
   plot_data <- lapply(ids, function(x){
     sd <- subset(plot_data , CCC.ID == x )
-
+    
     op = data.table(  ccc.id = x ,
                       max.group = sd$Group2[ which.max(  sd$LR.score  )   ],
                       L = filter_res2$ligand[ filter_res2$CCC.ID  == x  ],
@@ -67,13 +67,13 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
     )
     return(  op  )
   }) %>% rbindlist() %>% setDF()
-
+  
   #
   if( is.null( max.group  ) ){
     max.group = unique(  ccc.res[["parameters"]][["data"]][["parameters"]][["meta.data"]][ , ccc.res[["parameters"]][["group"]]  ]  )[1]
   }
   if( is.null(title ) ){ title =  paste0( max.group , ' vs Others'  )  }
-
+  
   ########################CELL
   if ( !LR  ){
     #
@@ -93,18 +93,18 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
                         trend = c('UP','DOWN')
       )
       return( op )
-
+      
       #
     }) %>% rbindlist()
     colnames(heatmap_data) <- c('X','Y','value','trend')
-
+    
     #X ,sender
     #Y ,receiver
-
+    
     #
     heatmap_data$X <- as.character( heatmap_data$X )
     heatmap_data$Y <- as.character( heatmap_data$Y )
-
+    
     #
     heatmap_data_test <- heatmap_data[ heatmap_data$value != 0 ,  ]
     if( length( unique( heatmap_data_test$X ) ) < 2 | length( unique( heatmap_data_test$Y ) ) < 2 ){
@@ -112,7 +112,7 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
     }
     heatmap_data <- heatmap_data[ heatmap_data$Y %in% heatmap_data_test$Y   ,   ]
     heatmap_data <- heatmap_data[ heatmap_data$X %in% heatmap_data_test$X   ,   ]
-
+    
     #filter
     if( !is.null(top.up) ){
       #
@@ -123,7 +123,7 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
       a <- table( heatmap_data$X[ heatmap_data$trend == 'UP' & heatmap_data$value != 0   ] )
       if( top.up > length(a) ){ top.up <- length(a) }
       c2 <- names( a[ a >= quantile( a , top.up / length(a) )] )
-
+      
       #
       heatmap_data <- heatmap_data[  heatmap_data$X %in% c2 & heatmap_data$Y %in% c1   , ]
     }
@@ -136,7 +136,7 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
       a <- table( heatmap_data$X[ heatmap_data$trend == 'DOWN' & heatmap_data$value != 0   ] )
       if( top.down > length(a) ){ top.down <- length(a) }
       c2 <- names( a[ a >= quantile( a , top.down / length(a) )] )
-
+      
       #
       heatmap_data <- heatmap_data[  heatmap_data$X %in% c2 & heatmap_data$Y %in% c1   , ]
     }
@@ -149,12 +149,12 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
       a <- table( heatmap_data$X[  heatmap_data$value != 0   ] )
       if( top.all > length(a) ){ top.all <- length(a) }
       c2 <- names( a[ a >= quantile( a , top.all / length(a) )] )
-
+      
       #
       heatmap_data <- heatmap_data[  heatmap_data$X %in% c2 & heatmap_data$Y %in% c1   , ]
     }
-
-
+    
+    
     #
     if( isTRUE( merge )  ){
       #
@@ -162,7 +162,7 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
         #
         df$x_num <- as.numeric(as.factor(df$X))
         df$y_num <- as.numeric(as.factor(df$Y))
-
+        
         up_tri <- df %>% filter(trend == "UP") %>% rowwise() %>%
           do(data.frame(
             X = .$X, Y = .$Y, value = .$value, trend = .$trend,
@@ -170,7 +170,7 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
             pos_y = c(.$y_num + 0.5, .$y_num + 0.5, .$y_num - 0.5),
             group = paste0(.$X, .$Y, "UP")
           ))
-
+        
         down_tri <- df %>% filter(trend == "DOWN") %>% rowwise() %>%
           do(data.frame(
             X = .$X, Y = .$Y, value = .$value, trend = .$trend,
@@ -178,14 +178,14 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
             pos_y = c(.$y_num + 0.5, .$y_num - 0.5, .$y_num - 0.5),
             group = paste0(.$X, .$Y, "DOWN")
           ))
-
+        
         return(rbind(up_tri, down_tri))
       }
       #
       triangles_data <- get_triangles(heatmap_data)
       triangles_data$value2 <- triangles_data$value
       triangles_data$value2[ which( triangles_data$trend == 'DOWN'  )  ] <- -triangles_data$value2[ which( triangles_data$trend == 'DOWN'  )  ]
-
+      
       #
       heatmap_main <- ggplot(triangles_data, aes(x = pos_x, y = pos_y, fill = value2, group = group)) +
         geom_polygon(color = border.color, size = border.size ) +
@@ -207,13 +207,13 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
           legend.position = "right",
           legend.direction = legend.direction
         )
-
+      
       #
       margin_x <- heatmap_data %>% group_by(X, trend) %>% summarise(total = sum(value))
       margin_x$alpha <- ifelse( margin_x$trend == 'UP', 1 , 0.9 )
       margin_y <- heatmap_data %>% group_by(Y, trend) %>% summarise(total = sum(value))
       margin_y$alpha <- ifelse( margin_y$trend == 'UP', 1 , 0.9  )
-
+      
       #receiver
       p_top <- ggplot(margin_x, aes(x = X, y = total, color = trend)) +
         geom_line(aes(group = X), color = "black" ) +
@@ -242,8 +242,8 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
           legend.direction = legend.direction,
           plot.title = element_text( hjust = 0.5 , size = plot.title   )
         )
-
-
+      
+      
       #sender
       right_ratio <- 1 / point2heatmap
       colnames(margin_y)[1] <- 'X'
@@ -273,17 +273,17 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
           legend.position = "right",
           legend.direction = legend.direction
         )
-
+      
       #
       final_p <- heatmap_main %>%  insert_top(p_top,height= point2heatmap ) %>% insert_right( p_right )
-
+      
       #
       print( final_p  )
       return( final_p )
-
+      
     }else{
       #split,UP,DOWN
-
+      
       if( trend == 'Up' ){
         heatmap_data2 <- heatmap_data[ heatmap_data$trend == 'UP' ,  ]
         heatmap_data_test <- heatmap_data2[ heatmap_data2$value != 0 ,  ]
@@ -292,8 +292,8 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
         }
         heatmap_data2 <- heatmap_data2[ heatmap_data2$Y %in% heatmap_data_test$Y   ,   ]
         heatmap_data2 <- heatmap_data2[ heatmap_data2$X %in% heatmap_data_test$X   ,   ]
-
-
+        
+        
         heatmap_main2 <- ggplot( heatmap_data2, ) +
           geom_tile( aes( x = X , y = Y , fill =  value  ), color = border.color, size = border.size ) +
           scale_fill_gradient2(low = colors$mid, high = colors$high ) +
@@ -314,11 +314,11 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
             legend.position = "left",
             legend.direction = legend.direction
           )
-
+        
         #
         margin_x <- heatmap_data2 %>% group_by(X, trend) %>% summarise(total = sum(value))
         margin_y <- heatmap_data2 %>% group_by(Y, trend) %>% summarise(total = sum(value))
-
+        
         #receiver
         p_top <- ggplot(margin_x, aes(x = X, y = total)) +
           geom_point( aes(size = total , alpha = total  ) , color = colors$high  ) + scale_size( range = point.size )+
@@ -344,8 +344,8 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
             legend.direction = legend.direction,
             plot.title = element_text( hjust = 0.5 , size = plot.title   )
           )
-
-
+        
+        
         #sender
         right_ratio <- 1 / point2heatmap
         colnames(margin_y)[1] <- 'X'
@@ -371,14 +371,14 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
             legend.position = "right",
             legend.direction = legend.direction
           )
-
+        
         #
         up_p <- heatmap_main2 %>%  insert_top(p_top, height= point2heatmap ) %>% insert_right( p_right )
         print( up_p )
         return( up_p )
       }
-
-
+      
+      
       #down
       if( trend == 'Down' ){
         heatmap_data2 <- heatmap_data[ heatmap_data$trend == 'DOWN' ,  ]
@@ -388,8 +388,8 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
         }
         heatmap_data2 <- heatmap_data2[ heatmap_data2$Y %in% heatmap_data_test$Y   ,   ]
         heatmap_data2 <- heatmap_data2[ heatmap_data2$X %in% heatmap_data_test$X   ,   ]
-
-
+        
+        
         heatmap_main2 <- ggplot( heatmap_data2, ) +
           geom_tile( aes( x = X , y = Y , fill =  value  ), color = border.color, size = border.size ) +
           scale_fill_gradient2(low = colors$mid, high = colors$low ) +
@@ -410,11 +410,11 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
             legend.position = "left",
             legend.direction = legend.direction
           )
-
+        
         #
         margin_x <- heatmap_data2 %>% group_by(X, trend) %>% summarise(total = sum(value))
         margin_y <- heatmap_data2 %>% group_by(Y, trend) %>% summarise(total = sum(value))
-
+        
         #receiver
         p_top <- ggplot(margin_x, aes(x = X, y = total)) +
           geom_point( aes(size = total , alpha = total  ) , color = colors$low  ) + scale_size( range = point.size )+
@@ -440,8 +440,8 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
             legend.direction = legend.direction,
             plot.title = element_text( hjust = 0.5 , size = plot.title   )
           )
-
-
+        
+        
         #sender
         right_ratio <- 1 / point2heatmap
         colnames(margin_y)[1] <- 'X'
@@ -467,20 +467,20 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
             legend.position = "right",
             legend.direction = legend.direction
           )
-
+        
         #
         down_p <- heatmap_main2 %>%  insert_top(p_top, height= point2heatmap ) %>% insert_right( p_right )
         print( down_p  )
         return( down_p )
-
+        
       }
-
+      
     }
-
-
+    
+    
   }else{
     ######################################################LR
-
+    
     #
     cells <- unique( c( as.character( plot_data$L ) ,  as.character( plot_data$r   ) ) )
     cells <- sort(cells ,decreasing = F )
@@ -498,19 +498,19 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
                         trend = c('UP','DOWN')
       )
       return( op )
-
+      
       #
     }) %>% rbindlist()
     colnames(heatmap_data) <- c('X','Y','value','trend')
-
-
+    
+    
     #X ,receptor
     #Y ,ligand
-
+    
     #
     heatmap_data$X <- as.character( heatmap_data$X )
     heatmap_data$Y <- as.character( heatmap_data$Y )
-
+    
     #
     heatmap_data_test <- heatmap_data[ heatmap_data$value != 0 ,  ]
     if( length( unique( heatmap_data_test$X ) ) < 2 | length( unique( heatmap_data_test$Y ) ) < 2 ){
@@ -518,8 +518,8 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
     }
     heatmap_data <- heatmap_data[ heatmap_data$Y %in% heatmap_data_test$Y   ,   ]
     heatmap_data <- heatmap_data[ heatmap_data$X %in% heatmap_data_test$X   ,   ]
-
-
+    
+    
     #filter
     if( !is.null(top.up) ){
       #
@@ -530,7 +530,7 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
       a <- table( heatmap_data$X[ heatmap_data$trend == 'UP' & heatmap_data$value != 0   ] )
       if( top.up > length(a) ){ top.up <- length(a) }
       c2 <- names( a[ a >= quantile( a , top.up / length(a) )] )
-
+      
       #
       heatmap_data <- heatmap_data[  heatmap_data$X %in% c2 & heatmap_data$Y %in% c1   , ]
     }
@@ -543,7 +543,7 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
       a <- table( heatmap_data$X[ heatmap_data$trend == 'DOWN' & heatmap_data$value != 0   ] )
       if( top.down > length(a) ){ top.down <- length(a) }
       c2 <- names( a[ a >= quantile( a , top.down / length(a) )] )
-
+      
       #
       heatmap_data <- heatmap_data[  heatmap_data$X %in% c2 & heatmap_data$Y %in% c1   , ]
     }
@@ -556,12 +556,12 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
       a <- table( heatmap_data$X[  heatmap_data$value != 0   ] )
       if( top.all > length(a) ){ top.all <- length(a) }
       c2 <- names( a[ a >= quantile( a , top.all / length(a) )] )
-
+      
       #
       heatmap_data <- heatmap_data[  heatmap_data$X %in% c2 & heatmap_data$Y %in% c1   , ]
     }
-
-
+    
+    
     #
     if( isTRUE( merge )  ){
       #
@@ -569,7 +569,7 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
         #
         df$x_num <- as.numeric(as.factor(df$X))
         df$y_num <- as.numeric(as.factor(df$Y))
-
+        
         up_tri <- df %>% filter(trend == "UP") %>% rowwise() %>%
           do(data.frame(
             X = .$X, Y = .$Y, value = .$value, trend = .$trend,
@@ -577,7 +577,7 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
             pos_y = c(.$y_num + 0.5, .$y_num + 0.5, .$y_num - 0.5),
             group = paste0(.$X, .$Y, "UP")
           ))
-
+        
         down_tri <- df %>% filter(trend == "DOWN") %>% rowwise() %>%
           do(data.frame(
             X = .$X, Y = .$Y, value = .$value, trend = .$trend,
@@ -585,14 +585,14 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
             pos_y = c(.$y_num + 0.5, .$y_num - 0.5, .$y_num - 0.5),
             group = paste0(.$X, .$Y, "DOWN")
           ))
-
+        
         return(rbind(up_tri, down_tri))
       }
       #
       triangles_data <- get_triangles(heatmap_data)
       triangles_data$value2 <- triangles_data$value
       triangles_data$value2[ which( triangles_data$trend == 'DOWN'  )  ] <- -triangles_data$value2[ which( triangles_data$trend == 'DOWN'  )  ]
-
+      
       #
       heatmap_main <- ggplot(triangles_data, aes(x = pos_x, y = pos_y, fill = value2, group = group)) +
         geom_polygon(color = border.color, size = border.size ) +
@@ -614,13 +614,13 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
           legend.position = "right",
           legend.direction = legend.direction
         )
-
+      
       #
       margin_x <- heatmap_data %>% group_by(X, trend) %>% summarise(total = sum(value))
       margin_x$alpha <- ifelse( margin_x$trend == 'UP', 1 , 0.9 )
       margin_y <- heatmap_data %>% group_by(Y, trend) %>% summarise(total = sum(value))
       margin_y$alpha <- ifelse( margin_y$trend == 'UP', 1 , 0.9  )
-
+      
       #receptor
       p_top <- ggplot(margin_x, aes(x = X, y = total, color = trend)) +
         geom_line(aes(group = X), color = "black" ) +
@@ -649,8 +649,8 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
           legend.direction = legend.direction,
           plot.title = element_text( hjust = 0.5 , size = plot.title   )
         )
-
-
+      
+      
       #ligand
       right_ratio <- 1 / point2heatmap
       colnames(margin_y)[1] <- 'X'
@@ -680,17 +680,17 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
           legend.position = "right",
           legend.direction = legend.direction
         )
-
+      
       #
       final_p <- heatmap_main %>%  insert_top(p_top,height = point2heatmap ) %>% insert_right( p_right )
-
+      
       #
       print( final_p  )
       return( final_p )
-
+      
     }else{
       #split,UP,DOWN
-
+      
       if( trend == 'Up' ){
         heatmap_data2 <- heatmap_data[ heatmap_data$trend == 'UP' ,  ]
         heatmap_data_test <- heatmap_data2[ heatmap_data2$value != 0 ,  ]
@@ -699,8 +699,8 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
         }
         heatmap_data2 <- heatmap_data2[ heatmap_data2$Y %in% heatmap_data_test$Y   ,   ]
         heatmap_data2 <- heatmap_data2[ heatmap_data2$X %in% heatmap_data_test$X   ,   ]
-
-
+        
+        
         heatmap_main2 <- ggplot( heatmap_data2, ) +
           geom_tile( aes( x = X , y = Y , fill =  value  ), color = border.color, size = border.size ) +
           scale_fill_gradient2(low = colors$mid, high = colors$high ) +
@@ -721,11 +721,11 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
             legend.position = "left",
             legend.direction = legend.direction
           )
-
+        
         #
         margin_x <- heatmap_data2 %>% group_by(X, trend) %>% summarise(total = sum(value))
         margin_y <- heatmap_data2 %>% group_by(Y, trend) %>% summarise(total = sum(value))
-
+        
         #receptor
         p_top <- ggplot(margin_x, aes(x = X, y = total)) +
           geom_point( aes(size = total , alpha = total  ) , color = colors$high  ) + scale_size( range = point.size )+
@@ -751,8 +751,8 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
             legend.direction = legend.direction,
             plot.title = element_text( hjust = 0.5 , size = plot.title   )
           )
-
-
+        
+        
         #ligand
         right_ratio <- 1 / point2heatmap
         colnames(margin_y)[1] <- 'X'
@@ -778,14 +778,14 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
             legend.position = "right",
             legend.direction = legend.direction
           )
-
+        
         #
         up_p <- heatmap_main2 %>%  insert_top(p_top, height =  point2heatmap ) %>% insert_right( p_right )
         print( up_p )
         return( up_p )
       }
-
-
+      
+      
       #down
       if( trend == 'Down' ){
         heatmap_data2 <- heatmap_data[ heatmap_data$trend == 'DOWN' ,  ]
@@ -795,7 +795,7 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
         }
         heatmap_data2 <- heatmap_data2[ heatmap_data2$Y %in% heatmap_data_test$Y   ,   ]
         heatmap_data2 <- heatmap_data2[ heatmap_data2$X %in% heatmap_data_test$X   ,   ]
-
+        
         heatmap_main2 <- ggplot( heatmap_data2 ) +
           geom_tile( aes( x = X , y = Y , fill =  value  ), color = border.color, size = border.size ) +
           scale_fill_gradient2(low = colors$mid, high = colors$low ) +
@@ -816,11 +816,11 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
             legend.position = "left",
             legend.direction = legend.direction
           )
-
+        
         #
         margin_x <- heatmap_data2 %>% group_by(X, trend) %>% summarise(total = sum(value))
         margin_y <- heatmap_data2 %>% group_by(Y, trend) %>% summarise(total = sum(value))
-
+        
         #receptor
         p_top <- ggplot(margin_x, aes(x = X, y = total)) +
           geom_point( aes(size = total , alpha = total  ) , color = colors$low  ) + scale_size( range = point.size )+
@@ -846,8 +846,8 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
             legend.direction = legend.direction,
             plot.title = element_text( hjust = 0.5 , size = plot.title   )
           )
-
-
+        
+        
         #ligand
         right_ratio <- 1 / point2heatmap
         colnames(margin_y)[1] <- 'X'
@@ -873,12 +873,12 @@ do_heatmap <- function( ccc.res , data.used = 'filtered.result',fill = 'p.adj', 
             legend.position = "right",
             legend.direction = legend.direction
           )
-
+        
         #
         down_p <- heatmap_main2 %>%  insert_top(p_top, height = point2heatmap ) %>% insert_right( p_right )
         print( down_p  )
         return( down_p )
-
+        
       }
     }
   }
@@ -979,7 +979,7 @@ plot_heatmap_cell <- function(res , max.group = NULL, merge = T,trend = 'Up',
                      top.up = top.up, top.down = top.down, top.all = top.all
     )
   )
-
+  
   return( p )
 }
 
@@ -1079,7 +1079,7 @@ plot_heatmap_lr <- function(res , max.group = NULL, merge = T,trend = 'Up',
                      top.up = top.up, top.down = top.down, top.all = top.all
     )
   )
-
+  
   return( p )
 }
 

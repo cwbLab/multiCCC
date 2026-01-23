@@ -14,11 +14,11 @@ do_circos <- function(
     library( aplot )
     library( plotthis )
   })
-
+  
   ccc.res <- res
   if(  data.used == 'filtered.result'  ){  ccc.res$result <- ccc.res$filtered.result  }
   ccc.res$result <- ccc.res$result[ !is.na( ccc.res$result$p ) , ]
-
+  
   #filter1
   filter_res1 <- ccc.res$result
   if ( fill == 'p'  ){
@@ -26,7 +26,7 @@ do_circos <- function(
   }else{
     filter_res1 <- filter_res1[ filter_res1$p.adj <  threshold , ]
   }
-
+  
   #filter2
   filter_res2 <- ccc.res$parameters$data$CCC.info
   if( !is.null(ligand) ){  filter_res2 <- filter_res2[   filter_res2$ligand %in% ligand ,  ]    }
@@ -34,25 +34,25 @@ do_circos <- function(
   if( !is.null(sender) ){  filter_res2 <- filter_res2[   filter_res2$source %in% sender ,  ]   }
   if( !is.null(receiver) ){  filter_res2 <- filter_res2[   filter_res2$target %in% receiver ,  ]    }
   if( !is.null(CCC.ID) ){  filter_res2 <- filter_res2[   filter_res2$CCC.ID %in% CCC.ID ,  ]    }
-
+  
   #final data
   final_res <- filter_res1[ filter_res1$CCC.ID %in% filter_res2$CCC.ID  ,  ]
   if( nrow( final_res ) == 0  ){ stop(simpleError( 'No data were retained. Please adjust the filtering thresholds.' )  )    }
-
+  
   #plot data
   plot_data <- final_res[  , str_detect(colnames(final_res)  , 'mean'  ) ]
   plot_data <- cbind(plot_data , final_res[ ,c( 'CCC.ID' , fill ) ]  )
-
+  
   plot_data <- reshape2::melt( plot_data , id.vars =c('CCC.ID',fill))
   colnames(plot_data)[3] <- 'Group'
   colnames( plot_data )[4] <- 'LR.score'
   plot_data$Group2 <- str_remove( plot_data$Group , '^mean.'   )
-
+  
   #stat
   ids <- unique( plot_data$CCC.ID  )
   plot_data <- lapply(ids, function(x){
     sd <- subset(plot_data , CCC.ID == x )
-
+    
     op = data.table(  ccc.id = x ,
                       max.group = sd$Group2[ which.max(  sd$LR.score  )   ],
                       L = filter_res2$ligand[ filter_res2$CCC.ID  == x  ],
@@ -64,13 +64,13 @@ do_circos <- function(
     )
     return(  op  )
   }) %>% rbindlist() %>% setDF()
-
+  
   #
   if( is.null( max.group  ) ){
     max.group = unique(  ccc.res[["parameters"]][["data"]][["parameters"]][["meta.data"]][ , ccc.res[["parameters"]][["group"]]  ]  )[1]
   }
   if( is.null(title ) ){ title =  paste0( max.group , ' vs Others'  ) }
-
+  
   #
   if( LR ){
     final_plot_data <- data.frame(   from = plot_data$L ,  to  = plot_data$r  ,
@@ -79,7 +79,7 @@ do_circos <- function(
     final_plot_data <- data.frame(   from = plot_data$s ,  to  = plot_data$t  ,
                                      Group = ifelse( plot_data$max.group == max.group  ,'Up' , 'Down'  )     )
   }
-
+  
   #
   if (merge){
     final_p <- plotthis::ChordPlot(
@@ -113,10 +113,10 @@ do_circos <- function(
       title = paste0( title,' (Down)' ),
       theme_args = list( plot.title = element_text( size = plot.title , hjust = 0.5   ))
     )
-
+    
     #
     final_p <- cowplot::plot_grid( plotlist = list(final_p_up , final_p_down  ) , nrow = 1  )
-
+    
   }
   #
   print( final_p )
@@ -189,7 +189,7 @@ plot_circos <- function(
   #
   fill = 'p.adj' ; threshold = padj.threshold
   if( !is.null( p.threshold  )  ){   fill = 'p' ; threshold = p.threshold    }
-
+  
   #
   p <- do_circos(
     res = res, data.used = 'filtered.result',fill = fill, threshold =  threshold ,max.group = max.group,

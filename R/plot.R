@@ -64,19 +64,19 @@ plot_dot <- function( res , data.used = 'filtered.result',fill = 'p.adj', thresh
 ){
   #
   suppressMessages({
-  library( ggplot2 )
-  library( dplyr  )
-  library( data.table )
-  library( stringr )
-  library( reshape2  )
-  library( sjPlot  )
+    library( ggplot2 )
+    library( dplyr  )
+    library( data.table )
+    library( stringr )
+    library( reshape2  )
+    library( sjPlot  )
   })
   #
   ccc.res <- res
-
+  
   if(  data.used == 'filtered.result'  ){  ccc.res$result <- ccc.res$filtered.result  }
   ccc.res$result <- ccc.res$result[ !is.na( ccc.res$result$p ) , ]
-
+  
   #filter1
   filter_res1 <- ccc.res$result
   if ( fill == 'p'  ){
@@ -84,7 +84,7 @@ plot_dot <- function( res , data.used = 'filtered.result',fill = 'p.adj', thresh
   }else{
     filter_res1 <- filter_res1[ filter_res1$p.adj <  threshold , ]
   }
-
+  
   #filter2
   filter_res2 <- ccc.res$parameters$data$CCC.info
   if( !is.null(ligand) ){  filter_res2 <- filter_res2[   filter_res2$ligand %in% ligand ,  ]    }
@@ -92,19 +92,19 @@ plot_dot <- function( res , data.used = 'filtered.result',fill = 'p.adj', thresh
   if( !is.null(sender) ){  filter_res2 <- filter_res2[   filter_res2$source %in% sender ,  ]   }
   if( !is.null(receiver) ){  filter_res2 <- filter_res2[   filter_res2$target %in% receiver ,  ]    }
   if( !is.null(CCC.ID) ){  filter_res2 <- filter_res2[   filter_res2$CCC.ID %in% CCC.ID ,  ]    }
-
+  
   #final data
   final_res <- filter_res1[ filter_res1$CCC.ID %in% filter_res2$CCC.ID  ,  ]
   if( nrow( final_res ) == 0  ){ stop(simpleError( 'No data were retained. Please adjust the filtering thresholds.' )  )    }
-
+  
   #plot data
   plot_data <- final_res[  , str_detect(colnames(final_res)  , 'mean'  ) ]
   plot_data <- cbind(plot_data , final_res[ ,c( 'CCC.ID' , fill ) ]  )
-
+  
   plot_data <- reshape2::melt( plot_data , id.vars =c('CCC.ID',fill))
   colnames(plot_data)[3] <- 'Group'
   colnames( plot_data )[4] <- 'LR.score'
-
+  
   #shape
   ids <- unique( plot_data$CCC.ID  )
   plot_data <- lapply(ids, function(x){
@@ -118,13 +118,13 @@ plot_dot <- function( res , data.used = 'filtered.result',fill = 'p.adj', thresh
     #
     return( sd )
   }) %>% rbindlist()
-
+  
   #
   plot_data$Group <- str_remove_all( plot_data$Group , 'mean.'  )
   plot_data$LR.score <- as.numeric( plot_data$LR.score )
   plot_data[[fill]] <- as.numeric( plot_data[[fill]] )
   plot_data$Rank <- plot_data$shape
-
+  
   #plot
   if( nrow( plot_data ) == 0 ){
     stop( simpleError( 'No CCCs were retained. Please adjust the filtering threshold.'  ) )
@@ -212,12 +212,12 @@ plot_line <- function( res, CCC.ID, p = T, p.adj =T,
 ){
   #
   suppressMessages({
-  library( ggplot2 )
-  library( dplyr  )
-  library( data.table )
-  library( stringr )
-  library( reshape2  )
-  library( sjPlot  )
+    library( ggplot2 )
+    library( dplyr  )
+    library( data.table )
+    library( stringr )
+    library( reshape2  )
+    library( sjPlot  )
   })
   #
   ccc.res <- res
@@ -226,28 +226,28 @@ plot_line <- function( res, CCC.ID, p = T, p.adj =T,
   if( is.null(model_res) ){
     stop( simpleError( paste0( 'Failed to construct a model for ', CCC.ID , '. Please choose another CCC.ID.'  ) )  )
   }
-
+  
   model_summary <- summary(model_res)
   #
   coef_time <- round(model_summary$coefficients[ colnames( ccc.res[["meta.data"]] )[2]  , "Estimate"], 3)
   pval_time <- signif(model_summary$coefficients[colnames( ccc.res[["meta.data"]] )[2], "Pr(>|t|)"], 3)
   padj <- signif( ccc.res$result$p.adj[ ccc.res$result$CCC.ID == CCC.ID ] , 3 )
-
+  
   # P text
   label_text <- paste0("β = ", coef_time)
   if ( p ){ label_text <- paste0( label_text, "\np = ", pval_time) }
   if ( p.adj ){ label_text <- paste0( label_text, "\np.adj = ", padj) }
-
+  
   #
   title = ccc.res$parameters$data$CCC.info[ ccc.res$parameters$data$CCC.info$CCC.ID == CCC.ID,  ]
   title = paste0( title$st2 , ' (', title$lr , ')' )
-
+  
   # line plot
   p <- NULL
-
+  
   #glm
   if ( ccc.res$type == "glm" ){
-
+    
     suppressMessages(
       p <- sjPlot::plot_model(model_res,
                               type = "pred",
@@ -273,12 +273,12 @@ plot_line <- function( res, CCC.ID, p = T, p.adj =T,
           axis.title = element_text( size = axis.title )
         )
     )
-
+    
   }
-
+  
   #time course
   if ( ccc.res$type == "time.course" ){
-
+    
     suppressMessages(
       p <- sjPlot::plot_model(model_res,
                               type = "pred",
@@ -304,7 +304,7 @@ plot_line <- function( res, CCC.ID, p = T, p.adj =T,
           axis.title = element_text( size = axis.title )
         )
     )
-
+    
   }
   print(p)
   #

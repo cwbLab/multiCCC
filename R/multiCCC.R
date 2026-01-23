@@ -2,22 +2,18 @@
 ###binary
 get_binary <- function( data , group , g1 , g2, permutation , p.adjust.method , threads ){
   #
-<<<<<<< HEAD
   message( '[ ', format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' ] ','Performing permutation test.'  )
-=======
-  message( format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' | ','Performing permutation test.'  )
->>>>>>> 8c48b23a66e49255cd5c14d2dc1bfa998fe1e706
-
+  
   #
   new.meta <- data$parameters$meta.data[  , c(  data$parameters$sample  , group   )  ]
   colnames(new.meta) <- c( 'sample'  , 'group'  )
   groups <- dplyr::distinct( new.meta , sample , group ,.keep_all = T   ) %>% arrange( sample, group  )
   rownames(groups) <- NULL
-
+  
   #
   raw.score <- data$LRscore
   raw.score <- raw.score[  , match(  groups$sample , colnames( raw.score  )    ) ]
-
+  
   #
   res <- pbmclapply( 1:nrow( raw.score ) , function(x){
     v = raw.score[x,] %>% unlist() %>% as.numeric()
@@ -36,27 +32,23 @@ get_binary <- function( data , group , g1 , g2, permutation , p.adjust.method , 
       #
       g1.length = length( which( groups$group  == g1 ) )
       g2.length = length( which( groups$group  == g2 ) )
-
+      
       #
       ps <- lapply( 1:permutation , function(num){
         set.seed(num)
         perm.data <- sample( v )
         mean(  perm.data[  g1.index  ]  ) - mean( perm.data[  g2.index  ] )
-
+        
       }) %>% as.numeric()
       #
-<<<<<<< HEAD
       pvalue <- (length(which(abs(ps) > abs(ms))) + 1) / (  permutation + 1 )
-=======
-      pvalue <- (length(which(abs(ps) > abs(ms))) + 1) / ( permutation + 1 )
->>>>>>> 8c48b23a66e49255cd5c14d2dc1bfa998fe1e706
       #
       op = c( g1.mean = g1.mean , g2.mean  = g2.mean , log2fc = log2fc , p = pvalue )
     }
     return( data.table( t( op )  )    )
-
+    
   } ,mc.cores = threads ) %>% rbindlist() %>% setDF()
-
+  
   colnames( res ) <- c(  paste( 'mean',c(g1, g2), sep='.' ) , 'log2FC' , 'p'  )
   rownames(res ) <- rownames( raw.score )
   res$p.adj <- p.adjust(  res$p, method = p.adjust.method )
@@ -64,14 +56,14 @@ get_binary <- function( data , group , g1 , g2, permutation , p.adjust.method , 
   res <- cbind( res , data$CCC.info[ , c( "source","target","ligand","receptor","st","lr" )  ]  )
   #
   colnames( groups ) <- c(  data$parameters$sample  , group   )
-
+  
   ######LRwFC
   nonzero_means <- c(res[,2][res[,2]>0], res[,3][res[,3]>0])
   pc <- mean(nonzero_means) * ( length( nonzero_means ) / (nrow(res) * 2 ) )
   log2FC.smoothed <- log2( (res[,2] + pc) / (res[,3] + pc) )
   max.mean <- pmax(res[,2], res[,3])
   res$LRwFC <- log2FC.smoothed * max.mean / max( nonzero_means )
-
+  
   #
   return( list(
     meta.data = groups,
@@ -87,30 +79,26 @@ get_binary <- function( data , group , g1 , g2, permutation , p.adjust.method , 
 ###anova
 get_anova <-  function( data , group , p.adjust.method, threads ){
   #
-<<<<<<< HEAD
   message( '[ ', format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' ] ', 'Performing ANOVA test.'  )
-=======
-  message( format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' | ','Performing ANOVA test.'  )
->>>>>>> 8c48b23a66e49255cd5c14d2dc1bfa998fe1e706
-
+  
   #
   new.meta <- data$parameters$meta.data[  , c(  data$parameters$sample  , group   )  ]
   colnames(new.meta) <- c( 'sample'  , 'group'  )
   groups <- dplyr::distinct( new.meta , sample , group ,.keep_all = T   ) %>% arrange( sample, group  )
   rownames(groups) <- NULL
   gs = unique( groups$group  ) %>% sort()
-
+  
   #
   raw.score <- data$LRscore
   raw.score <- raw.score[  , match(  groups$sample , colnames( raw.score  )    ) ]
-
+  
   #
   res <- pbmclapply( 1:nrow( raw.score ) , function(x){
     v = raw.score[x,] %>% unlist() %>% as.numeric()
     #
     op = c( F.value = NA , p =  NA )
     op  = c( op , rep(NA,length(gs)  ) )
-
+    
     if( sum(v) != 0 ){
       #
       df <- data.frame( d = v , g = groups$group )
@@ -123,9 +111,9 @@ get_anova <-  function( data , group , p.adjust.method, threads ){
       #
     }
     return( data.table( t( op )  )    )
-
+    
   } ,mc.cores = threads ) %>% rbindlist() %>% setDF()
-
+  
   #
   colnames( res ) <- c(  'F.value' , 'p' , paste( 'mean', gs, sep='.' )  )
   rownames(res ) <- rownames( raw.score )
@@ -134,7 +122,7 @@ get_anova <-  function( data , group , p.adjust.method, threads ){
   res <- cbind(  CCC.ID = rownames(res)    , res  )
   #
   colnames( groups ) <- c(  data$parameters$sample  , group   )
-
+  
   #
   return( list(
     meta.data = groups,
@@ -149,22 +137,18 @@ get_anova <-  function( data , group , p.adjust.method, threads ){
 ###glm
 get_glm <- function(  data , group , covariance , p.adjust.method , threads ){
   #
-<<<<<<< HEAD
   message( '[ ', format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' ] ', 'Fitting generalized linear model.'  )
-=======
-  message( format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' | ','Fitting generalized linear model.'  )
->>>>>>> 8c48b23a66e49255cd5c14d2dc1bfa998fe1e706
-
+  
   #
   new.meta <- data$parameters$meta.data[  , c(  data$parameters$sample  , c(group , covariance )  )  ]
   groups <- dplyr::distinct( new.meta , .keep_all = T   )
   groups[[ group ]] <- as.numeric( as.character( groups[[ group ]] ) )
   rownames(groups) <- NULL
-
+  
   #
   raw.score <- data$LRscore
   raw.score <- raw.score[  , match(  groups[[ data$parameters$sample ]] , colnames( raw.score  )    ) ]
-
+  
   #
   model_res <- mclapply( 1:nrow( raw.score ) , function(x){
     v = raw.score[x,] %>% unlist() %>% as.numeric()
@@ -183,12 +167,12 @@ get_glm <- function(  data , group , covariance , p.adjust.method , threads ){
     }
   } ,mc.cores = threads )
   model_res <- model_res[ ! unlist( lapply( model_res , is.null   ) )    ]
-
+  
   #
   names <- lapply( model_res, function(x) x[['name']] ) %>% unlist() %>% as.character()
   models <- lapply( model_res, function(x) x[['model']] )
   names(models) <- names
-
+  
   #
   res <- pbmclapply( 1 : nrow( raw.score )  , function(x){
     name = row.names( raw.score )[x]
@@ -202,7 +186,7 @@ get_glm <- function(  data , group , covariance , p.adjust.method , threads ){
     }
     return(   data.table( t(op) )   )
   } , mc.cores = threads ) %>% rbindlist() %>% setDF()
-
+  
   colnames( res ) <- c(  'coef' , 'p' )
   rownames(res ) <- rownames( raw.score )
   res$p.adj <- p.adjust(  res$p, method = p.adjust.method )
@@ -223,23 +207,19 @@ get_glm <- function(  data , group , covariance , p.adjust.method , threads ){
 ###time
 get_time <- function(  data , time , replicate , covariance , p.adjust.method , threads ){
   #
-<<<<<<< HEAD
   message( '[ ', format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' ] ', 'Fitting linear mixed-effects model.'  )
-=======
-  message( format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' | ','Fitting linear mixed-effects model.'  )
->>>>>>> 8c48b23a66e49255cd5c14d2dc1bfa998fe1e706
-
+  
   #
   new.meta <- data$parameters$meta.data[  , c(  data$parameters$sample  , c(time , replicate , covariance )  )  ]
   groups <- dplyr::distinct( new.meta , .keep_all = T   )
   groups[[ time ]] <- as.numeric( as.character( groups[[ time ]] ) )
   groups[[ replicate ]] <- as.numeric( as.character( groups[[ replicate ]] ) )
   rownames(groups) <- NULL
-
+  
   #
   raw.score <- data$LRscore
   raw.score <- raw.score[  , match(  groups[[ data$parameters$sample ]] , colnames( raw.score  )    ) ]
-
+  
   #
   model_res <- mclapply( 1:nrow( raw.score ) , function(x){
     v = raw.score[x,] %>% unlist() %>% as.numeric()
@@ -259,12 +239,12 @@ get_time <- function(  data , time , replicate , covariance , p.adjust.method , 
     }
   } ,mc.cores = threads )
   model_res <- model_res[ ! unlist( lapply( model_res , is.null   ) )    ]
-
+  
   #
   names <- lapply( model_res, function(x) x[['name']] ) %>% unlist() %>% as.character()
   models <- lapply( model_res, function(x) x[['model']] )
   names(models) <- names
-
+  
   #
   res <- pbmclapply( 1 : nrow( raw.score )  , function(x){
     name = row.names( raw.score )[x]
@@ -278,7 +258,7 @@ get_time <- function(  data , time , replicate , covariance , p.adjust.method , 
     }
     return(   data.table( t(op) )   )
   } , mc.cores = threads ) %>% rbindlist() %>% setDF()
-
+  
   colnames( res ) <- c(  'coef' , 'p' )
   rownames(res ) <- rownames( raw.score )
   res$p.adj <- p.adjust(  res$p, method = p.adjust.method )
@@ -342,25 +322,25 @@ get_time <- function(  data , time , replicate , covariance , p.adjust.method , 
 multiCCC <- function( data , binary.params = NULL ,  anova.column = NULL,
                       glm.column = NULL , time.course.params = NULL ,
                       covariance = NULL, p.adjust.method = 'BH', threads = NULL
-                    ){
-
+){
+  
   ###
   run.start = Sys.time()
   suppressMessages({
-  library(dplyr)
-  library(pbmcapply)
-  library(data.table)
-  library(stringr)
-  library(parallel)
-  library(lmerTest)
+    library(dplyr)
+    library(pbmcapply)
+    library(data.table)
+    library(stringr)
+    library(parallel)
+    library(lmerTest)
   })
-
+  
   ###threads
   if( is.null(threads) ){  threads <- parallel::detectCores()   }
-
+  
   ###
   oplist <- list( )
-
+  
   ###
   if( !is.null( binary.params ) ){
     permutation  = 1000
@@ -386,14 +366,10 @@ multiCCC <- function( data , binary.params = NULL ,  anova.column = NULL,
       covariance = covariance , p.adjust.method = p.adjust.method , threads = threads
     )
   }
-
+  
   ###
-<<<<<<< HEAD
   run.end = Sys.time()
   message( '[ ', format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' ] ','Done. Total runtime: ', hms::as_hms( as.numeric( run.end - run.start, units = "secs") ) ,'.' )
-=======
-  message( format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' | ','Done.'  )
->>>>>>> 8c48b23a66e49255cd5c14d2dc1bfa998fe1e706
   return(  oplist )
 }
 

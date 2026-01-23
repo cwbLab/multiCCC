@@ -3,7 +3,7 @@ filter_ccc <- function( ccc.res , ligand.method = NULL, receptor.method = NULL )
   methods <- names( ccc.res )
   ccc.res <- lapply(methods, function( method.name ){
     message(  '[ ', format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' ] ' , method.name    )
-
+    
     x = ccc.res[[ method.name ]]
     #
     sce <- suppressWarnings(
@@ -14,7 +14,7 @@ filter_ccc <- function( ccc.res , ligand.method = NULL, receptor.method = NULL )
     )
     sce$celltype <- sce@metadata[[ x[["parameters"]][["data"]][["parameters"]][["celltype"]] ]] %>% as.character()
     sce@assays@data@listData[["logcounts"]] <- sce@assays@data@listData[["counts"]]
-
+    
     #markers
     if (  'gene.expression' %in% names(x)  ){
       message(  "'gene.expression' results already exist and will be used directly for filtering."  )
@@ -22,19 +22,19 @@ filter_ccc <- function( ccc.res , ligand.method = NULL, receptor.method = NULL )
     }else{
       marker_res <- presto::wilcoxauc(sce, group_by = "celltype", assay = "logcounts" )
       x[['gene.expression']] <- list( markers = marker_res , ligand.filter = ligand.method ,
-                                             receptor.filter = receptor.method, filtered.ligand = NULL,
-                                             filtered.receptor = NULL
+                                      receptor.filter = receptor.method, filtered.ligand = NULL,
+                                      filtered.receptor = NULL
       )
     }
-
+    
     #filter
     filtered_result <- x[["result"]]
     filtered_result <- subset(filtered_result , ! is.na( p.adj )  )
-
+    
     CCC.info <-  x[["parameters"]][["data"]][["CCC.info"]]
     CCC.info$ligand.filter <- paste( CCC.info$source , CCC.info$ligand , sep='*'  )
     CCC.info$receptor.filter <- paste( CCC.info$target , CCC.info$receptor , sep='*'  )
-
+    
     if ( ! is.null( ligand.method )  ){
       x$gene.expression$ligand.filter <- ligand.method
       filtered_markers <- subset(  marker_res ,eval(parse(text =  ligand.method )) )

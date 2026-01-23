@@ -4,7 +4,7 @@ do_network <- function(res, data.used = 'filtered.result',fill = 'p.adj', thresh
                        link.color = c("#FF0000","#085AFF") , link.alpha = 0.8 , link.weight.range =c(1,5),
                        node.size = NULL , node.border.size = 1 , node.border.color ="grey" , node.fill = "white" ,
                        label.size = 10  , label.color = "black"
-
+                       
 ){
   #
   suppressMessages({
@@ -17,11 +17,11 @@ do_network <- function(res, data.used = 'filtered.result',fill = 'p.adj', thresh
     library( aplot )
     library( plotthis )
   })
-
+  
   ccc.res <- res
   if(  data.used == 'filtered.result'  ){  ccc.res$result <- ccc.res$filtered.result  }
   ccc.res$result <- ccc.res$result[ !is.na( ccc.res$result$p ) , ]
-
+  
   #filter1
   filter_res1 <- ccc.res$result
   if ( fill == 'p'  ){
@@ -29,7 +29,7 @@ do_network <- function(res, data.used = 'filtered.result',fill = 'p.adj', thresh
   }else{
     filter_res1 <- filter_res1[ filter_res1$p.adj <  threshold , ]
   }
-
+  
   #filter2
   filter_res2 <- ccc.res$parameters$data$CCC.info
   if( !is.null(ligand) ){  filter_res2 <- filter_res2[   filter_res2$ligand %in% ligand ,  ]    }
@@ -37,25 +37,25 @@ do_network <- function(res, data.used = 'filtered.result',fill = 'p.adj', thresh
   if( !is.null(sender) ){  filter_res2 <- filter_res2[   filter_res2$source %in% sender ,  ]   }
   if( !is.null(receiver) ){  filter_res2 <- filter_res2[   filter_res2$target %in% receiver ,  ]    }
   if( !is.null(CCC.ID) ){  filter_res2 <- filter_res2[   filter_res2$CCC.ID %in% CCC.ID ,  ]    }
-
+  
   #final data
   final_res <- filter_res1[ filter_res1$CCC.ID %in% filter_res2$CCC.ID  ,  ]
   if( nrow( final_res ) == 0  ){ stop(simpleError( 'No data were retained. Please adjust the filtering thresholds.' )  )    }
-
+  
   #plot data
   plot_data <- final_res[  , str_detect(colnames(final_res)  , 'mean'  ) ]
   plot_data <- cbind(plot_data , final_res[ ,c( 'CCC.ID' , fill ) ]  )
-
+  
   plot_data <- reshape2::melt( plot_data , id.vars =c('CCC.ID',fill))
   colnames(plot_data)[3] <- 'Group'
   colnames( plot_data )[4] <- 'LR.score'
   plot_data$Group2 <- str_remove( plot_data$Group , '^mean.'   )
-
+  
   #stat
   ids <- unique( plot_data$CCC.ID  )
   plot_data <- lapply(ids, function(x){
     sd <- subset(plot_data , CCC.ID == x )
-
+    
     op = data.table(  ccc.id = x ,
                       max.group = sd$Group2[ which.max(  sd$LR.score  )   ],
                       L = filter_res2$ligand[ filter_res2$CCC.ID  == x  ],
@@ -67,7 +67,7 @@ do_network <- function(res, data.used = 'filtered.result',fill = 'p.adj', thresh
     )
     return(  op  )
   }) %>% rbindlist() %>% setDF()
-
+  
   #
   if( is.null( max.group  ) ){
     max.group = unique(  ccc.res[["parameters"]][["data"]][["parameters"]][["meta.data"]][ , ccc.res[["parameters"]][["group"]]  ]  )[1]
@@ -102,7 +102,7 @@ do_network <- function(res, data.used = 'filtered.result',fill = 'p.adj', thresh
       guides( size = "none"   )
     print(final_p)
     return(final_p)
-
+    
   }else{
     #####################Up
     splot_data <- plot_data[ plot_data$max.group ==  max.group ,  ]
@@ -131,7 +131,7 @@ do_network <- function(res, data.used = 'filtered.result',fill = 'p.adj', thresh
                                      link_curvature = 0.2
     )+theme( plot.title =  element_text( size= plot.title , hjust = 0.5  )  )+
       guides( size = "none"   )
-
+    
     #down
     splot_data <- plot_data[ plot_data$max.group !=  max.group ,  ]
     if( nrow( splot_data ) == 0  ){
@@ -159,7 +159,7 @@ do_network <- function(res, data.used = 'filtered.result',fill = 'p.adj', thresh
                                        link_curvature = 0.2
     )+theme( plot.title =  element_text( size= plot.title , hjust = 0.5  )  )+
       guides( size = "none"  )
-
+    
     #
     final_p <- cowplot::plot_grid( plotlist = list( final_p_up , final_p_down ) , nrow = 1  )
     #
@@ -245,7 +245,7 @@ plot_network <- function(res, data.used = 'filtered.result',padj.threshold =  0.
                   link.color = link.color , link.alpha = link.alpha , link.weight.range = link.weight.range,
                   node.size = node.size , node.border.size = node.border.size , node.border.color = node.border.color , node.fill = node.fill ,
                   label.size = label.size  , label.color = label.color
-
+                  
   )
   return(p)
   #
