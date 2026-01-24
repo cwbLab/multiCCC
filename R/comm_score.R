@@ -1,3 +1,40 @@
+rbindlist_n <- function(l, n = 10000, max_chunks = NULL, fill = FALSE, use.names = TRUE, idcol = NULL,  threads = NULL ) {
+  
+  library(parallel)
+  library(data.table)
+  library(dplyr)
+  
+  #detect
+  stopifnot(is.list(l))
+  if (is.null(threads)) { threads = parallel::detectCores() }
+  
+  ######
+  len <- length(l)
+  
+  #get n
+  if( !is.null(max_chunks) ){  n = max( 1, ceiling(len / max_chunks) )    }
+  
+  #
+  if (len <= n) { return( data.table::rbindlist(l, fill = fill, use.names = use.names, idcol = idcol)) }
+  
+  #
+  starts <- seq(1, len, by = n)
+  ends <- pmin(starts + n - 1, len)
+  
+  #
+  intermediate_list <- mclapply(seq_along(starts), function(i){
+    data.table::rbindlist( l[starts[i]:ends[i]] , fill = fill, use.names = use.names, idcol = idcol)
+  } , mc.cores = threads )
+  
+  #
+  result <- data.table::rbindlist(intermediate_list, fill = fill, use.names = use.names, idcol = idcol)
+  
+  ######
+  
+  return(result)
+}
+
+
 
 
 #
@@ -73,7 +110,7 @@ cci_lrscore <- function( exp , meta.data , sample , celltype , LR.ref, lr.databa
     #
     return( data.table( matrix( res , nrow = 1 ) ) )
     
-  } , mc.cores = threads ) %>% rbindlist()
+  } , mc.cores = threads ) %>% rbindlist_n( n = 10000 , use.names = F )
   score <- setDT(score)
   score <- data.table::set( score, j = names(score), value = lapply(score, as.numeric) )
   score <- setDF( score )
@@ -418,7 +455,7 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
     ############
     return(  data.table(   matrix( myres , nrow = 1   )  )  )
     
-  } , mc.cores = threads  ) %>% rbindlist() %>% setDF()
+  } , mc.cores = threads  ) %>%  rbindlist_n( n = 10000 , use.names = F ) %>% setDF()
   
   #########################################################
   LRscore <- data.table(t(LRscore)) %>% setDF()
@@ -535,7 +572,7 @@ scoreLR <- function( exp,meta.data,sample,celltype,
       
     }) %>% rbindlist()
     
-  }, mc.cores = threads   ) %>% rbindlist()
+  }, mc.cores = threads   ) %>% rbindlist_n( n = 2000 , use.names = F )
   colnames( detect_exp ) <- c( 'sample' , 'celltype', 'gene', 'prob' ,'reserved'   )
   
   

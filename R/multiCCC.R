@@ -47,7 +47,7 @@ get_binary <- function( data , group , g1 , g2, permutation , p.adjust.method , 
     }
     return( data.table( t( op )  )    )
     
-  } ,mc.cores = threads ) %>% rbindlist() %>% setDF()
+  } ,mc.cores = threads ) %>% rbindlist_n( n = 10000 , use.names = F ) %>% setDF()
   
   colnames( res ) <- c(  paste( 'mean',c(g1, g2), sep='.' ) , 'log2FC' , 'p'  )
   rownames(res ) <- rownames( raw.score )
@@ -112,7 +112,7 @@ get_anova <-  function( data , group , p.adjust.method, threads ){
     }
     return( data.table( t( op )  )    )
     
-  } ,mc.cores = threads ) %>% rbindlist() %>% setDF()
+  } ,mc.cores = threads ) %>% rbindlist_n( n = 10000 , use.names = F ) %>% setDF()
   
   #
   colnames( res ) <- c(  'F.value' , 'p' , paste( 'mean', gs, sep='.' )  )
@@ -185,7 +185,7 @@ get_glm <- function(  data , group , covariance , p.adjust.method , threads ){
       )
     }
     return(   data.table( t(op) )   )
-  } , mc.cores = threads ) %>% rbindlist() %>% setDF()
+  } , mc.cores = threads ) %>% rbindlist_n( n = 10000 , use.names = F ) %>% setDF()
   
   colnames( res ) <- c(  'coef' , 'p' )
   rownames(res ) <- rownames( raw.score )
@@ -257,7 +257,7 @@ get_time <- function(  data , time , replicate , covariance , p.adjust.method , 
       )
     }
     return(   data.table( t(op) )   )
-  } , mc.cores = threads ) %>% rbindlist() %>% setDF()
+  } , mc.cores = threads ) %>% rbindlist_n( n = 10000 , use.names = F ) %>% setDF()
   
   colnames( res ) <- c(  'coef' , 'p' )
   rownames(res ) <- rownames( raw.score )
