@@ -19,7 +19,7 @@ get_binary <- function( data , group , g1 , g2, permutation , p.adjust.method , 
     v = raw.score[x,] %>% unlist() %>% as.numeric()
     #
     op = c( g1.mean = 0 , g2.mean  = 0 , log2fc = NA , p = NA )
-    if( sum(v) != 0 ){
+    if( max(v) != 0 ){
       #
       g1.index <- which( groups$group  == g1 )
       g2.index <- which( groups$group  == g2 )
@@ -45,9 +45,9 @@ get_binary <- function( data , group , g1 , g2, permutation , p.adjust.method , 
       #
       op = c( g1.mean = g1.mean , g2.mean  = g2.mean , log2fc = log2fc , p = pvalue )
     }
-    return( data.table( t( op )  )    )
+    return( op )
     
-  } ,mc.cores = threads ) %>% rbindlist_n( n = 10000 , use.names = F ) %>% setDF()
+  } ,mc.cores = threads ) %>% transpose() %>% as.data.table() %>% setDF()
   
   colnames( res ) <- c(  paste( 'mean',c(g1, g2), sep='.' ) , 'log2FC' , 'p'  )
   rownames(res ) <- rownames( raw.score )
@@ -110,9 +110,9 @@ get_anova <-  function( data , group , p.adjust.method, threads ){
       op <- c( op , d )
       #
     }
-    return( data.table( t( op )  )    )
+    return( op )
     
-  } ,mc.cores = threads ) %>% rbindlist_n( n = 10000 , use.names = F ) %>% setDF()
+  } ,mc.cores = threads ) %>% transpose() %>% as.data.table() %>% setDF()
   
   #
   colnames( res ) <- c(  'F.value' , 'p' , paste( 'mean', gs, sep='.' )  )
@@ -153,7 +153,7 @@ get_glm <- function(  data , group , covariance , p.adjust.method , threads ){
   model_res <- mclapply( 1:nrow( raw.score ) , function(x){
     v = raw.score[x,] %>% unlist() %>% as.numeric()
     #
-    if( sum(v) != 0 ){
+    if( max(v) != 0 ){
       #
       df <- groups
       df <- cbind( lrscore = v , df  )
@@ -184,8 +184,8 @@ get_glm <- function(  data , group , covariance , p.adjust.method , threads ){
               p = ds[ group , 'Pr(>|t|)' ]
       )
     }
-    return(   data.table( t(op) )   )
-  } , mc.cores = threads ) %>% rbindlist_n( n = 10000 , use.names = F ) %>% setDF()
+    return( op )
+  } , mc.cores = threads ) %>% transpose() %>% as.data.table() %>% setDF()
   
   colnames( res ) <- c(  'coef' , 'p' )
   rownames(res ) <- rownames( raw.score )
@@ -224,7 +224,7 @@ get_time <- function(  data , time , replicate , covariance , p.adjust.method , 
   model_res <- mclapply( 1:nrow( raw.score ) , function(x){
     v = raw.score[x,] %>% unlist() %>% as.numeric()
     #
-    if( sum(v) != 0 ){
+    if( max(v) != 0 ){
       #
       df <- groups
       df <- cbind( lrscore = v , df  )
@@ -256,8 +256,8 @@ get_time <- function(  data , time , replicate , covariance , p.adjust.method , 
               p = ds[ time , 'Pr(>|t|)' ]
       )
     }
-    return(   data.table( t(op) )   )
-  } , mc.cores = threads ) %>% rbindlist_n( n = 10000 , use.names = F ) %>% setDF()
+    return( op )
+  } , mc.cores = threads ) %>% transpose() %>% as.data.table() %>% setDF()
   
   colnames( res ) <- c(  'coef' , 'p' )
   rownames(res ) <- rownames( raw.score )

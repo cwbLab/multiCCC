@@ -108,10 +108,9 @@ cci_lrscore <- function( exp , meta.data , sample , celltype , LR.ref, lr.databa
       return( LRscore )
     })
     #
-    return( data.table( matrix( res , nrow = 1 ) ) )
+    return( res )
     
-  } , mc.cores = threads ) %>% rbindlist_n( n = 10000 , use.names = F )
-  score <- setDT(score)
+  } , mc.cores = threads ) %>% transpose() %>% as.data.table()
   score <- data.table::set( score, j = names(score), value = lapply(score, as.numeric) )
   score <- setDF( score )
   
@@ -453,12 +452,11 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
     }
     
     ############
-    return(  data.table(   matrix( myres , nrow = 1   )  )  )
+    return( myres )
     
-  } , mc.cores = threads  ) %>%  rbindlist_n( n = 10000 , use.names = F ) %>% setDF()
+  } , mc.cores = threads  ) %>%  transpose() %>% as.data.table() %>%  transpose() %>%  setDF()
   
   #########################################################
-  LRscore <- data.table(t(LRscore)) %>% setDF()
   colnames(LRscore) <- samples
   rownames(LRscore) <- all_group$CCC.ID
   #
@@ -563,9 +561,7 @@ scoreLR <- function( exp,meta.data,sample,celltype,
           my.return = 'Y'
         }
         #
-        return(  data.table( matrix( c(sample = m , celltype = n ,
-                                       gene = gene , prob = prob , reserved = my.return ) ,
-                                     nrow =1 )   )   )
+        return(   list(sample = m , celltype = n , gene = gene , prob = prob , reserved = my.return )    )
         #
         
       }) %>% rbindlist()

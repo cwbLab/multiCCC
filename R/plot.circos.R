@@ -53,7 +53,7 @@ do_circos <- function(
   plot_data <- lapply(ids, function(x){
     sd <- subset(plot_data , CCC.ID == x )
     
-    op = data.table(  ccc.id = x ,
+    op = list(  ccc.id = x ,
                       max.group = sd$Group2[ which.max(  sd$LR.score  )   ],
                       L = filter_res2$ligand[ filter_res2$CCC.ID  == x  ],
                       r = filter_res2$receptor[ filter_res2$CCC.ID  == x  ],
@@ -63,7 +63,7 @@ do_circos <- function(
                       st2 = filter_res2$st2[ filter_res2$CCC.ID  == x  ]
     )
     return(  op  )
-  }) %>% rbindlist() %>% setDF()
+  }) %>% transpose() %>% as.data.table() %>% setDF()
   
   #
   if( is.null( max.group  ) ){
