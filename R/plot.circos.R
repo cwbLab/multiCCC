@@ -63,7 +63,7 @@ do_circos <- function(
                       st2 = filter_res2$st2[ filter_res2$CCC.ID  == x  ]
     )
     return(  op  )
-  }) %>% transpose() %>% as.data.table() %>% setDF()
+  }) %>% rbindlist() %>% setDF()
   
   #
   if( is.null( max.group  ) ){

@@ -66,7 +66,7 @@ do_network <- function(res, data.used = 'filtered.result',fill = 'p.adj', thresh
                       st2 = filter_res2$st2[ filter_res2$CCC.ID  == x  ]
     )
     return(  op  )
-  }) %>% transpose() %>% as.data.table() %>% setDF()
+  }) %>% rbindlist() %>% setDF()
   
   #
   if( is.null( max.group  ) ){
