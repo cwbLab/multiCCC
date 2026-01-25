@@ -162,22 +162,26 @@ get_glm <- function(  data , group , covariance , p.adjust.method , threads ){
   raw.score <- raw.score[  , match(  groups[[ data$parameters$sample ]] , colnames( raw.score  )    ) ]
   
   #
-  model_res <- mclapply( 1:nrow( raw.score ) , function(x){
-    v = raw.score[x,] %>% unlist() %>% as.numeric()
-    #
-    if( max(v) != 0 ){
-      #
-      df <- groups
-      df <- cbind( lrscore = v , df  )
-      if( is.null( covariance  ) ){
-        myformula <- paste0( 'lrscore' ,'~' , colnames(df)[3]   )
-      }else{
-        myformula <- paste0( 'lrscore' ,'~' , colnames(df)[3] ,'+' , paste( covariance , collapse = '+' )   )
-      }
-      model_glm <- glm(  as.formula( myformula  ), data = df , family = gaussian  )
-      return( list( name = rownames(raw.score)[x] ,  model =  model_glm )  )
-    }
-  } ,mc.cores = threads )
+  suppressWarnings(
+    suppressMessages({
+      model_res <- lapply( 1:nrow( raw.score ) , function(x){
+        v = raw.score[x,] %>% unlist() %>% as.numeric()
+        #
+        if( max(v) != 0 ){
+          #
+          df <- groups
+          df <- cbind( lrscore = v , df  )
+          if( is.null( covariance  ) ){
+            myformula <- paste0( 'lrscore' ,'~' , colnames(df)[3]   )
+          }else{
+            myformula <- paste0( 'lrscore' ,'~' , colnames(df)[3] ,'+' , paste( covariance , collapse = '+' )   )
+          }
+          model_glm <- glm(  as.formula( myformula  ), data = df , family = gaussian  )
+          return( list( name = rownames(raw.score)[x] ,  model =  model_glm )  )
+        }
+      })
+    })
+  )
   model_res <- model_res[ ! unlist( lapply( model_res , is.null   ) )    ]
   
   #
@@ -240,23 +244,28 @@ get_time <- function(  data , time , replicate , covariance , p.adjust.method , 
   raw.score <- raw.score[  , match(  groups[[ data$parameters$sample ]] , colnames( raw.score  )    ) ]
   
   #
-  model_res <- mclapply( 1:nrow( raw.score ) , function(x){
-    v = raw.score[x,] %>% unlist() %>% as.numeric()
-    #
-    if( max(v) != 0 ){
-      #
-      df <- groups
-      df <- cbind( lrscore = v , df  )
-      if( is.null( covariance  ) ){
-        myformula <- paste0( 'lrscore' ,'~' , colnames(df)[3] , '+ ( 1 | ' , colnames(df)[4]  ,')'    )
-      }else{
-        myformula <- paste0( 'lrscore' ,'~' , colnames(df)[3] , '+ ( 1 | ' , colnames(df)[4]  ,')',
-                             '+' , paste( covariance , collapse = '+' )   )
-      }
-      model_lmer <- lmerTest::lmer(  as.formula( myformula  ), data = df  )
-      return( list( name = rownames(raw.score)[x] ,  model =  model_lmer )  )
-    }
-  } ,mc.cores = threads )
+  suppressWarnings(
+    suppressMessages({
+      model_res <- lapply( 1:nrow( raw.score ) , function(x){
+        v = raw.score[x,] %>% unlist() %>% as.numeric()
+        #
+        if( max(v) != 0 ){
+          #
+          df <- groups
+          df <- cbind( lrscore = v , df  )
+          if( is.null( covariance  ) ){
+            myformula <- paste0( 'lrscore' ,'~' , colnames(df)[3] , '+ ( 1 | ' , colnames(df)[4]  ,')'    )
+          }else{
+            myformula <- paste0( 'lrscore' ,'~' , colnames(df)[3] , '+ ( 1 | ' , colnames(df)[4]  ,')',
+                                 '+' , paste( covariance , collapse = '+' )   )
+          }
+          model_lmer <- lmerTest::lmer(  as.formula( myformula  ), data = df  )
+          return( list( name = rownames(raw.score)[x] ,  model =  model_lmer )  )
+        }
+      })
+  
+    })
+  )
   model_res <- model_res[ ! unlist( lapply( model_res , is.null   ) )    ]
   
   #
