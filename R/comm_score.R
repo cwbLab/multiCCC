@@ -511,16 +511,18 @@ scoreLR <- function( exp,meta.data,sample,celltype,
 ){
   ###
   run.start = Sys.time()
-  suppressMessages({
-    library(dplyr)
-    library(pbmcapply)
-    library(data.table)
-    library(stringr)
-    library(parallel)
-    library(Seurat)
-    library(SingleCellExperiment)
-  })
-  
+  suppressWarnings(
+    suppressMessages({
+      library(dplyr)
+      library(pbmcapply)
+      library(data.table)
+      library(stringr)
+      library(parallel)
+      library(Seurat)
+      library(SingleCellExperiment)
+    })
+  )
+
   ###threads
   if( is.null(threads) ){  threads <- parallel::detectCores()   }
   

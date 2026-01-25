@@ -45,15 +45,21 @@ get_binary <- function( data , group , g1 , g2, permutation , p.adjust.method , 
       #
       op = c( g1.mean = g1.mean , g2.mean  = g2.mean , log2fc = log2fc , p = pvalue )
     }
-    return( op )
+    #
+    if( is.na(op[['p']]) ){ return(NULL) }else{ return( op ) }
     
-  } ,mc.cores = threads ) %>% transpose() %>% as.data.table() %>% setDF()
+  } ,mc.cores = threads ) 
+  #
+  null_res <- vapply(res, is.null, logical(1))
+  res <- res[  !null_res  ] %>% transpose() %>% as.data.table() %>% setDF()
   
   colnames( res ) <- c(  paste( 'mean',c(g1, g2), sep='.' ) , 'log2FC' , 'p'  )
-  rownames(res ) <- rownames( raw.score )
+  res <- res[ !is.na(res$p) ,  ]
+  if( nrow(res) < 1 ){ stop( simpleError(  'All input values are zero. No valid data are available for further analysis. Please check the previous analysis step.'  ) )   }
+  rownames(res ) <- rownames( raw.score )[  !null_res  ]
   res$p.adj <- p.adjust(  res$p, method = p.adjust.method )
   res <- cbind(  CCC.ID = rownames(res)    , res  )
-  res <- cbind( res , data$CCC.info[ , c( "source","target","ligand","receptor","st","lr" )  ]  )
+  res <- cbind( res , data$CCC.info[ !null_res , c( "source","target","ligand","receptor","st","lr" )  ]  )
   #
   colnames( groups ) <- c(  data$parameters$sample  , group   )
   
@@ -110,13 +116,19 @@ get_anova <-  function( data , group , p.adjust.method, threads ){
       op <- c( op , d )
       #
     }
-    return( op )
+    #
+    if( is.na(op[['p']]) ){ return(NULL) }else{ return( op ) }
     
-  } ,mc.cores = threads ) %>% transpose() %>% as.data.table() %>% setDF()
+  } ,mc.cores = threads )
+  #
+  null_res <- vapply(res, is.null, logical(1))
+  res <- res[  !null_res  ] %>% transpose() %>% as.data.table() %>% setDF()
   
   #
   colnames( res ) <- c(  'F.value' , 'p' , paste( 'mean', gs, sep='.' )  )
-  rownames(res ) <- rownames( raw.score )
+  res <- res[ !is.na(res$p) ,  ]
+  if( nrow(res) < 1 ){ stop( simpleError(  'All input values are zero. No valid data are available for further analysis. Please check the previous analysis step.'  ) )   }
+  rownames(res ) <- rownames( raw.score )[  !null_res  ]
   res$p.adj <- p.adjust(  res$p, method = p.adjust.method )
   res <- dplyr::select( res ,F.value , p , p.adj  , everything() )
   res <- cbind(  CCC.ID = rownames(res)    , res  )
@@ -184,11 +196,18 @@ get_glm <- function(  data , group , covariance , p.adjust.method , threads ){
               p = ds[ group , 'Pr(>|t|)' ]
       )
     }
-    return( op )
-  } , mc.cores = threads ) %>% transpose() %>% as.data.table() %>% setDF()
+    #
+    if( is.na(op[['p']]) ){ return(NULL) }else{ return( op ) }
+    
+  } , mc.cores = threads )
+  #
+  null_res <- vapply(res, is.null, logical(1))
+  res <- res[  !null_res  ] %>% transpose() %>% as.data.table() %>% setDF()
   
   colnames( res ) <- c(  'coef' , 'p' )
-  rownames(res ) <- rownames( raw.score )
+  res <- res[ !is.na(res$p) ,  ]
+  if( nrow(res) < 1 ){ stop( simpleError(  'All input values are zero. No valid data are available for further analysis. Please check the previous analysis step.'  ) ) }
+  rownames(res ) <- rownames( raw.score )[  !null_res  ]
   res$p.adj <- p.adjust(  res$p, method = p.adjust.method )
   res <- cbind(  CCC.ID = rownames(res)    , res  )
   #
@@ -256,11 +275,18 @@ get_time <- function(  data , time , replicate , covariance , p.adjust.method , 
               p = ds[ time , 'Pr(>|t|)' ]
       )
     }
-    return( op )
-  } , mc.cores = threads ) %>% transpose() %>% as.data.table() %>% setDF()
+    #
+    if( is.na(op[['p']]) ){ return(NULL) }else{ return( op ) }
+    
+  } , mc.cores = threads )
+  #
+  null_res <- vapply(res, is.null, logical(1))
+  res <- res[  !null_res  ] %>% transpose() %>% as.data.table() %>% setDF()
   
   colnames( res ) <- c(  'coef' , 'p' )
-  rownames(res ) <- rownames( raw.score )
+  res <- res[ !is.na(res$p) ,  ]
+  if( nrow(res) < 1 ){ stop( simpleError(  'All input values are zero. No valid data are available for further analysis. Please check the previous analysis step.'  ) ) }
+  rownames(res ) <- rownames( raw.score )[  !null_res  ]
   res$p.adj <- p.adjust(  res$p, method = p.adjust.method )
   res <- cbind(  CCC.ID = rownames(res)  , res )
   #
@@ -317,6 +343,14 @@ get_time <- function(  data , time , replicate , covariance , p.adjust.method , 
 #' ccc.anova <- multiCCC( data = LRscore , anova.column = 'batch' )
 #' ccc.glm <- multiCCC( data = LRscore , glm.column = 'weight' )
 #' ccc.time <- multiCCC( data = LRscore , time.course.params = list( time  = 'time' , replicate  = 'replicate'  ) )
+#' 
+#' #One-step execution for all scenarios
+#' ccc.all <- multiCCC( data = LRscore , 
+#' 	   binary.params = list( group = 'Group' , g1 = 'O' , g2 = 'Y'  ),
+#' 	   anova.column = 'batch',
+#' 	   glm.column = 'weight',
+#' 	   time.course.params = list( time  = 'time' , replicate  = 'replicate'  )
+#' 	)
 #'
 #' @export
 multiCCC <- function( data , binary.params = NULL ,  anova.column = NULL,

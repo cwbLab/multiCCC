@@ -47,11 +47,22 @@ ccc.anova <- multiCCC( data = LRscore , anova.column = 'batch' )
 ccc.glm <- multiCCC( data = LRscore , glm.column = 'weight' )
 ccc.time <- multiCCC( data = LRscore , time.course.params = list( time  = 'time' , replicate  = 'replicate'  ) )
 
+#One-step execution for all scenarios
+ccc.all <- multiCCC( data = LRscore, 
+	   binary.params = list( group = 'Group' , g1 = 'O' , g2 = 'Y'  ),
+	   anova.column = 'batch',
+	   glm.column = 'weight',
+	   time.course.params = list( time  = 'time' , replicate  = 'replicate'  )
+	)
+
 #3.filterCCC
 #Note: The filterCCC function simultaneously applies filtering to all analysis results, without requiring separate filtering for different application scenarios.
 filter.binary <- filterCCC(ccc.binary)
 filter.anova <- filterCCC(ccc.anova)
 filter.glm <- filterCCC(ccc.glm )
 filter.time <- filterCCC(ccc.time)
+
+#One-step execution for all scenarios
+filter.all <- filterCCC(ccc.all)
 
 }

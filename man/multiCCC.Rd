@@ -58,4 +58,12 @@ ccc.anova <- multiCCC( data = LRscore , anova.column = 'batch' )
 ccc.glm <- multiCCC( data = LRscore , glm.column = 'weight' )
 ccc.time <- multiCCC( data = LRscore , time.course.params = list( time  = 'time' , replicate  = 'replicate'  ) )
 
+#One-step execution for all scenarios
+ccc.all <- multiCCC( data = LRscore , 
+	   binary.params = list( group = 'Group' , g1 = 'O' , g2 = 'Y'  ),
+	   anova.column = 'batch',
+	   glm.column = 'weight',
+	   time.course.params = list( time  = 'time' , replicate  = 'replicate'  )
+	)
+
 }
