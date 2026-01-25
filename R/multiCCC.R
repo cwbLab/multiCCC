@@ -132,6 +132,7 @@ get_anova <-  function( data , group , p.adjust.method, threads ){
   res$p.adj <- p.adjust(  res$p, method = p.adjust.method )
   res <- dplyr::select( res ,F.value , p , p.adj  , everything() )
   res <- cbind(  CCC.ID = rownames(res)    , res  )
+  res <- cbind( res , data$CCC.info[ !null_res , c( "source","target","ligand","receptor","st","lr" )  ]  )
   #
   colnames( groups ) <- c(  data$parameters$sample  , group   )
   
@@ -214,6 +215,7 @@ get_glm <- function(  data , group , covariance , p.adjust.method , threads ){
   rownames(res ) <- rownames( raw.score )[  !null_res  ]
   res$p.adj <- p.adjust(  res$p, method = p.adjust.method )
   res <- cbind(  CCC.ID = rownames(res)    , res  )
+  res <- cbind( res , data$CCC.info[ !null_res , c( "source","target","ligand","receptor","st","lr" )  ]  )
   #
   return( list(
     meta.data = groups,
@@ -298,6 +300,7 @@ get_time <- function(  data , time , replicate , covariance , p.adjust.method , 
   rownames(res ) <- rownames( raw.score )[  !null_res  ]
   res$p.adj <- p.adjust(  res$p, method = p.adjust.method )
   res <- cbind(  CCC.ID = rownames(res)  , res )
+  res <- cbind( res , data$CCC.info[ !null_res , c( "source","target","ligand","receptor","st","lr" )  ]  )
   #
   return( list(
     meta.data = groups,
