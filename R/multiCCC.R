@@ -64,10 +64,10 @@ get_binary <- function( data , group , g1 , g2, permutation , p.adjust.method , 
   colnames( groups ) <- c(  data$parameters$sample  , group   )
   
   ######LRwFC
-  nonzero_means <- c(res[,2][res[,2]>0], res[,3][res[,3]>0])
+  nonzero_means <- c( res[ which(res[,2]>0 ) ,2 ] , res[ which(res[,3]> 0 ) ,3 ] ) %>% unlist() %>% as.numeric()
   pc <- mean(nonzero_means) * ( length( nonzero_means ) / (nrow(res) * 2 ) )
-  log2FC.smoothed <- log2( (res[,2] + pc) / (res[,3] + pc) )
-  max.mean <- pmax(res[,2], res[,3])
+  log2FC.smoothed <- log2( (as.numeric(res[,2]) + pc) / (as.numeric(res[,3]) + pc) )
+  max.mean <- pmax(as.numeric(res[,2]), as.numeric(res[,3]) )
   res$LRwFC <- log2FC.smoothed * max.mean / max( nonzero_means )
   
   #
