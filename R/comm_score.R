@@ -558,6 +558,7 @@ scoreLR <- function( exp,meta.data,sample,celltype,
         ds <- exp[  meta.data[[sample]] == m & meta.data[[celltype]] == n   ,  gene  ]
         #
         my.return='N'
+        prob = 0
         if( length(ds) > 0 ){
           prob = length(which(ds <= min.exp)) / length(ds)
           if( length(ds) >= min.cell &  prob >= min.prob   ){
