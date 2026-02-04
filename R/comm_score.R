@@ -35,16 +35,15 @@ rbindlist_n <- function(l, n = 10000, max_chunks = NULL, fill = FALSE, use.names
 }
 
 
-
-wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.7 , mem.max = 16 , pb = T ,time = F ) {
+wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.9 , mem.max = 16 , pb = F ,time = F) {
   start_time <- Sys.time()
   if( time ){ message( wb.log_time_title() , wb.log_time_start_end() , 'Tasks: ' , length(X) ,'.'  )  }
-
+  
   #1
   threads = mc.cores
   is_windows <- .Platform$OS.type == "windows"
   total_cores <- parallel::detectCores()
-
+  
   #windows
   if (is_windows){
     #
@@ -61,28 +60,28 @@ wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.7 , mem.max =
     }
     return(res)
   }
-
+  
   #
   if (  is.null(threads) ){
     target_threads <- total_cores - 1
     target_threads <- max(1, min(target_threads, total_cores))
-
-
+    
+    
     #2
     sample_size <- min(3, length(X))
     sample_idx <- sample(seq_along(X), sample_size)
-
+    
     #
-    get_used_mem <- function() sum(gc()[, 2]) * 1.5
-
+    get_used_mem <- function() sum(gc()[, 2])
+    
     mem_before <- get_used_mem()
     test_results <- base::lapply(X[sample_idx], FUN, ...)
     mem_after <- get_used_mem()
-
+    
     #
-    avg_mem_per_task_mb <- max((mem_after - mem_before) / sample_size, 0.1) * 1.2
+    avg_mem_per_task_mb <- max((mem_after - mem_before) / sample_size, 0.1)
     rm(test_results); gc()
-
+    
     #3
     get_total_mem_gb <- function() {
       res <- tryCatch({
@@ -96,14 +95,15 @@ wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.7 , mem.max =
       }, error = function(e) NA)
       return(res)
     }
-
+    
     total_mem_gb <- get_total_mem_gb()
     limit_mem_gb <- if(!is.na(total_mem_gb)) total_mem_gb * mem.ratio.max else mem.max
-
+    
     #4
-    chunk_size <- target_threads * 2
+    max_tasks_per_batch <- floor((limit_mem_gb / (avg_mem_per_task_mb / 1024)) * 0.9)
+    chunk_size <- min( max_tasks_per_batch , length(X)  )
     indices <- split(seq_along(X), ceiling(seq_along(X) / chunk_size))
-
+    
     #5
     final_results <- vector("list", length(X))
     total_chunks <- length(indices)
@@ -111,19 +111,19 @@ wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.7 , mem.max =
     progressr::with_progress({
       a <- 1:total_chunks
       mypb<- progressr::progressor(steps = length(a))
-
+      
       for (i in seq_along(indices)){
         #
         curr_idx <- indices[[i]]
-
+        
         #
         current_used_gb <- get_used_mem() / 1024
         available_gb <- limit_mem_gb - current_used_gb
-
+        
         #
         mem_allowed_cores <- max(1, floor(available_gb / (avg_mem_per_task_mb / 1024)))
         current_cores <- min(target_threads, mem_allowed_cores)
-
+        
         #
         batch_res <- parallel::mclapply(
           X[curr_idx],
@@ -134,11 +134,11 @@ wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.7 , mem.max =
         final_results[curr_idx] <- batch_res
         #
         rm(batch_res)
-        gc(full = TRUE)
+        if(i %% 5 == 0){ gc() }
         #
         mypb()
       }
-
+      
     },
     handlers = progressr::handlers(  progressr::handler_progress(
       format = "[:bar] :percent | Elapsed: :elapsed | ETA: :eta",
@@ -156,7 +156,7 @@ wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.7 , mem.max =
     }
     #
   }
-
+  
   #
   end_time <- Sys.time()
   if( time ){ message( wb.log_time_title() ,
@@ -166,7 +166,6 @@ wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.7 , mem.max =
   #
   return(final_results)
 }
-
 
 
 
