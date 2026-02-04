@@ -24,7 +24,7 @@ rbindlist_n <- function(l, n = 10000, max_chunks = NULL, fill = FALSE, use.names
   #
   intermediate_list <- mclapply(seq_along(starts), function(i){
     data.table::rbindlist( l[starts[i]:ends[i]] , fill = fill, use.names = use.names, idcol = idcol)
-  } , mc.cores = threads , mc.preschedule = FALSE )
+  } , mc.cores = threads  )
   
   #
   result <- data.table::rbindlist(intermediate_list, fill = fill, use.names = use.names, idcol = idcol)
@@ -33,6 +33,137 @@ rbindlist_n <- function(l, n = 10000, max_chunks = NULL, fill = FALSE, use.names
   
   return(result)
 }
+
+wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.7 , mem.max = 16 , pb = T ,time = F ) {
+  start_time <- Sys.time()
+  if( time ){ message( wb.log_time_title() , wb.log_time_start_end() , 'Tasks: ' , length(X) ,'.'  )  }
+
+  #1
+  threads = mc.cores
+  is_windows <- .Platform$OS.type == "windows"
+  total_cores <- parallel::detectCores()
+
+  #windows
+  if (is_windows){
+    #
+    if(pb){
+      res <- pbmcapply::pbmclapply(X, FUN, ... ,mc.cores = 1 )
+    }else{
+      res <- base::lapply(X, FUN, ...)
+    }
+    #
+    end_time <- Sys.time()
+    if( time ){ message( wb.log_time_title() ,
+                         wb.log_time_start_end( 'c' ) ,
+                         wb.log_time_runtime(  t.minor = start_time ,t.major = end_time  ))
+    }
+    return(res)
+  }
+
+  #
+  if (  is.null(threads) ){
+    target_threads <- total_cores - 1
+    target_threads <- max(1, min(target_threads, total_cores))
+
+
+    #2
+    sample_size <- min(3, length(X))
+    sample_idx <- sample(seq_along(X), sample_size)
+
+    #
+    get_used_mem <- function() sum(gc()[, 2]) * 1.5
+
+    mem_before <- get_used_mem()
+    test_results <- base::lapply(X[sample_idx], FUN, ...)
+    mem_after <- get_used_mem()
+
+    #
+    avg_mem_per_task_mb <- max((mem_after - mem_before) / sample_size, 0.1) * 1.2
+    rm(test_results); gc()
+
+    #3
+    get_total_mem_gb <- function() {
+      res <- tryCatch({
+        if (Sys.info()["sysname"] == "Linux") {
+          mem_kb <- as.numeric(system("awk '/MemTotal/ {print $2}' /proc/meminfo", intern = TRUE))
+          mem_kb / 1024 / 1024
+        } else if (Sys.info()["sysname"] == "Darwin") {
+          mem_bytes <- as.numeric(system("sysctl -n hw.memsize", intern = TRUE))
+          mem_bytes / 1024^3
+        } else { NA }
+      }, error = function(e) NA)
+      return(res)
+    }
+
+    total_mem_gb <- get_total_mem_gb()
+    limit_mem_gb <- if(!is.na(total_mem_gb)) total_mem_gb * mem.ratio.max else mem.max
+
+    #4
+    chunk_size <- target_threads * 2
+    indices <- split(seq_along(X), ceiling(seq_along(X) / chunk_size))
+
+    #5
+    final_results <- vector("list", length(X))
+
+    total_chunks <- length(indices)
+    message(paste0("Total chunk: ", total_chunks ))
+
+    for (i in seq_along(indices)){
+      message(paste0("Chunk number: ", i, ". Surplus: ", total_chunks - i))
+      #
+      curr_idx <- indices[[i]]
+
+      #
+      current_used_gb <- get_used_mem() / 1024
+      available_gb <- limit_mem_gb - current_used_gb
+
+      #
+      mem_allowed_cores <- max(1, floor(available_gb / (avg_mem_per_task_mb / 1024)))
+      current_cores <- min(target_threads, mem_allowed_cores)
+
+      #
+      if( pb ){
+        batch_res <- pbmcapply::pbmclapply(
+          X[curr_idx],
+          FUN,
+          ...,
+          mc.cores = current_cores
+        )
+      }else{
+        batch_res <- parallel::mclapply(
+          X[curr_idx],
+          FUN,
+          ...,
+          mc.cores = current_cores
+        )
+      }
+
+      final_results[curr_idx] <- batch_res
+
+      #
+      rm(batch_res)
+      gc(full = TRUE)
+    }
+  }else{
+    #
+    if(pb){
+      final_results <- pbmcapply::pbmclapply( X = X, FUN = FUN, ...,mc.cores = as.integer(threads)  )
+    }else{
+      final_results <- parallel::mclapply( X = X, FUN = FUN, ...,mc.cores = as.integer(threads)  )
+    }
+    #
+  }
+
+  #
+  end_time <- Sys.time()
+  if( time ){ message( wb.log_time_title() ,
+                       wb.log_time_start_end( 'c' ) ,
+                       wb.log_time_runtime(  t.minor = start_time ,t.major = end_time  ))
+  }
+  #
+  return(final_results)
+}
+
 
 
 
@@ -89,7 +220,7 @@ cci_lrscore <- function( exp , meta.data , sample , celltype , LR.ref, lr.databa
   all_group$lr <- paste( all_group$ligand, all_group$receptor , sep = '_'  )
   all_group$CCC.ID <- paste( all_group$st , all_group$lr , sep = '.' )
   #
-  score <- pbmclapply( 1:nrow(all_group),function(x){
+  score <- wb.smc( 1:nrow(all_group),function(x){
     #
     info <- all_group[x,] %>% unlist() %>% as.character()
     
@@ -110,7 +241,7 @@ cci_lrscore <- function( exp , meta.data , sample , celltype , LR.ref, lr.databa
     #
     return( res )
     
-  } , mc.cores = threads , mc.preschedule = FALSE) %>% transpose() %>% as.data.table()
+  } , mc.cores = threads ) %>% transpose() %>% as.data.table()
   score <- data.table::set( score, j = names(score), value = lapply(score, as.numeric) )
   score <- setDF( score )
   
@@ -169,7 +300,7 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
   all_group$lr <- paste( all_group$ligand, all_group$receptor , sep = '_'  )
   all_group$CCC.ID <- paste( all_group$st , all_group$lr , sep = '.' )
   #
-  LRscore <- pbmclapply(samples, function(x){
+  LRscore <- wb.smc(samples, function(x){
     sce_sub <- sce[, meta.data[[sample]] == x ]
     
     
@@ -454,7 +585,7 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
     ############
     return( myres )
     
-  } , mc.cores = threads , mc.preschedule = FALSE  ) %>%  transpose() %>% as.data.table() %>%  transpose() %>%  setDF()
+  } , mc.cores = threads ) %>%  transpose() %>% as.data.table() %>%  transpose() %>%  setDF()
   
   #########################################################
   colnames(LRscore) <- samples
@@ -552,7 +683,7 @@ scoreLR <- function( exp,meta.data,sample,celltype,
   message( '[Step 1/2 | ', format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' ] ','Checking the expression profiles of ligands and receptors.'  )
   
   
-  detect_exp <- pbmclapply( colnames(exp) ,function(gene){
+  detect_exp <- wb.smc( colnames(exp) ,function(gene){
     level1 <-  lapply(samples, function(m){
       level2 <- lapply(celltypes, function(n){
         ds <- exp[  meta.data[[sample]] == m & meta.data[[celltype]] == n   ,  gene  ] %>% as.numeric()
@@ -573,7 +704,7 @@ scoreLR <- function( exp,meta.data,sample,celltype,
       
     }) %>% rbindlist()
     
-  }, mc.cores = threads , mc.preschedule = FALSE  ) %>% rbindlist_n( n = 2000 , use.names = F )
+  }, mc.cores = threads ) %>% rbindlist_n( n = 2000 , use.names = F )
   colnames( detect_exp ) <- c( 'sample' , 'celltype', 'gene', 'prob' ,'reserved'   )
   #
   myfilter <- detect_exp[ which(detect_exp$reserved  == 'Y') , ]
