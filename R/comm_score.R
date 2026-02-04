@@ -134,7 +134,7 @@ wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.8 , mem.max =
         final_results[curr_idx] <- batch_res
         #
         rm(batch_res)
-        if(i %% 5 == 0){ gc() }
+        gc()
         #
         mypb()
       }
