@@ -35,7 +35,7 @@ rbindlist_n <- function(l, n = 10000, max_chunks = NULL, fill = FALSE, use.names
 }
 
 
-wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.9 , mem.max = 16 , pb = F ,time = F) {
+wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.8 , mem.max = 16 , pb = F ,time = F) {
   start_time <- Sys.time()
   if( time ){ message( wb.log_time_title() , wb.log_time_start_end() , 'Tasks: ' , length(X) ,'.'  )  }
   
