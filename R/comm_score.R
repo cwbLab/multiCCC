@@ -101,7 +101,7 @@ wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.8 , mem.max =
     
     #4
     max_tasks_per_batch <- floor((limit_mem_gb / (avg_mem_per_task_mb / 1024)) * 0.9)
-    chunk_size <- min( max_tasks_per_batch , length(X)  )
+    chunk_size <- floor( min( max_tasks_per_batch , length(X) ) * 0.9 )
     indices <- split(seq_along(X), ceiling(seq_along(X) / chunk_size))
     
     #5
