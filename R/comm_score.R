@@ -24,7 +24,7 @@ rbindlist_n <- function(l, n = 10000, max_chunks = NULL, fill = FALSE, use.names
   #
   intermediate_list <- mclapply(seq_along(starts), function(i){
     data.table::rbindlist( l[starts[i]:ends[i]] , fill = fill, use.names = use.names, idcol = idcol)
-  } , mc.cores = threads )
+  } , mc.cores = threads , mc.preschedule = FALSE )
   
   #
   result <- data.table::rbindlist(intermediate_list, fill = fill, use.names = use.names, idcol = idcol)
@@ -110,7 +110,7 @@ cci_lrscore <- function( exp , meta.data , sample , celltype , LR.ref, lr.databa
     #
     return( res )
     
-  } , mc.cores = threads ) %>% transpose() %>% as.data.table()
+  } , mc.cores = threads , mc.preschedule = FALSE) %>% transpose() %>% as.data.table()
   score <- data.table::set( score, j = names(score), value = lapply(score, as.numeric) )
   score <- setDF( score )
   
@@ -454,7 +454,7 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
     ############
     return( myres )
     
-  } , mc.cores = threads  ) %>%  transpose() %>% as.data.table() %>%  transpose() %>%  setDF()
+  } , mc.cores = threads , mc.preschedule = FALSE  ) %>%  transpose() %>% as.data.table() %>%  transpose() %>%  setDF()
   
   #########################################################
   colnames(LRscore) <- samples
@@ -557,14 +557,14 @@ scoreLR <- function( exp,meta.data,sample,celltype,
       level2 <- lapply(celltypes, function(n){
         ds <- exp[  meta.data[[sample]] == m & meta.data[[celltype]] == n   ,  gene  ] %>% as.numeric()
         #
-        my.return='N'
-        prob = 0
-        if( length(ds) > 0 ){
-          prob = length(which(ds >= min.exp)) / length(ds)
-          if( length(ds) >= min.cell &  prob >= min.prob   ){
-            my.return = 'Y'
-          }
-        }
+    		my.return='N'
+    		prob = 0
+    		if( length(ds) > 0 ){
+    			prob = length(which(ds >= min.exp)) / length(ds)
+    			if( length(ds) >= min.cell &  prob >= min.prob   ){
+    				my.return = 'Y'
+    			}
+    		}
         #
         return(   list(sample = m , celltype = n , gene = gene , prob = prob , reserved = my.return )    )
         #
@@ -573,12 +573,12 @@ scoreLR <- function( exp,meta.data,sample,celltype,
       
     }) %>% rbindlist()
     
-  }, mc.cores = threads   ) %>% rbindlist_n( n = 2000 , use.names = F )
+  }, mc.cores = threads , mc.preschedule = FALSE  ) %>% rbindlist_n( n = 2000 , use.names = F )
   colnames( detect_exp ) <- c( 'sample' , 'celltype', 'gene', 'prob' ,'reserved'   )
   #
   myfilter <- detect_exp[ which(detect_exp$reserved  == 'Y') , ]
-  exp <- exp[,colnames(exp) %in% myfilter$gene] %>% as.matrix()
-
+  exp <- exp[,  colnames(exp) %in% myfilter$gene   ] %>% as.matrix()
+  
   ###LRscore
   message( '[Step 2/2 | ', format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' ] ','Calculating communication strength score (LRscore).'  )
   all_lrDB <- data.frame( used.DB = c( "Consensus","Baccin2019","CellCall","CellChatDB",
