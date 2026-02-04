@@ -15,7 +15,7 @@ get_binary <- function( data , group , g1 , g2, permutation , p.adjust.method , 
   raw.score <- raw.score[  , match(  groups$sample , colnames( raw.score  )    ) ]
   
   #
-  res <- pbmclapply( 1:nrow( raw.score ) , function(x){
+  res <- wb.smc( 1:nrow( raw.score ) , function(x){
     v = raw.score[x,] %>% unlist() %>% as.numeric()
     #
     op = c( g1.mean = 0 , g2.mean  = 0 , log2fc = NA , p = NA )
@@ -48,7 +48,7 @@ get_binary <- function( data , group , g1 , g2, permutation , p.adjust.method , 
     #
     if( is.na(op[['p']]) ){ return(NULL) }else{ return( op ) }
     
-  } ,mc.cores = threads , mc.preschedule = FALSE) 
+  } ,mc.cores = threads ) 
   #
   null_res <- vapply(res, is.null, logical(1))
   res <- res[  !null_res  ] %>% transpose() %>% as.data.table() %>% setDF()
@@ -99,7 +99,7 @@ get_anova <-  function( data , group , p.adjust.method, threads ){
   raw.score <- raw.score[  , match(  groups$sample , colnames( raw.score  )    ) ]
   
   #
-  res <- pbmclapply( 1:nrow( raw.score ) , function(x){
+  res <- wb.smc( 1:nrow( raw.score ) , function(x){
     v = raw.score[x,] %>% unlist() %>% as.numeric()
     #
     op = c( F.value = NA , p =  NA )
@@ -119,7 +119,7 @@ get_anova <-  function( data , group , p.adjust.method, threads ){
     #
     if( is.na(op[['p']]) ){ return(NULL) }else{ return( op ) }
     
-  } ,mc.cores = threads, mc.preschedule = FALSE )
+  } ,mc.cores = threads )
   #
   null_res <- vapply(res, is.null, logical(1))
   res <- res[  !null_res  ] %>% transpose() %>% as.data.table() %>% setDF()
@@ -191,7 +191,7 @@ get_glm <- function(  data , group , covariance , p.adjust.method , threads ){
   names(models) <- names
   
   #
-  res <- pbmclapply( 1 : nrow( raw.score )  , function(x){
+  res <- wb.smc( 1 : nrow( raw.score )  , function(x){
     name = row.names( raw.score )[x]
     op = c( coef = NA , p =  NA )
     if ( name %in% names(models)  ){
@@ -204,7 +204,7 @@ get_glm <- function(  data , group , covariance , p.adjust.method , threads ){
     #
     if( is.na(op[['p']]) ){ return(NULL) }else{ return( op ) }
     
-  } , mc.cores = threads , mc.preschedule = FALSE)
+  } , mc.cores = threads )
   #
   null_res <- vapply(res, is.null, logical(1))
   res <- res[  !null_res  ] %>% transpose() %>% as.data.table() %>% setDF()
@@ -277,7 +277,7 @@ get_time <- function(  data , time , replicate , covariance , p.adjust.method , 
   names(models) <- names
   
   #
-  res <- pbmclapply( 1 : nrow( raw.score )  , function(x){
+  res <- wb.smc( 1 : nrow( raw.score )  , function(x){
     name = row.names( raw.score )[x]
     op = c( coef = NA , p =  NA )
     if ( name %in% names(models)  ){
@@ -290,7 +290,7 @@ get_time <- function(  data , time , replicate , covariance , p.adjust.method , 
     #
     if( is.na(op[['p']]) ){ return(NULL) }else{ return( op ) }
     
-  } , mc.cores = threads , mc.preschedule = FALSE)
+  } , mc.cores = threads )
   #
   null_res <- vapply(res, is.null, logical(1))
   res <- res[  !null_res  ] %>% transpose() %>% as.data.table() %>% setDF()
@@ -419,7 +419,5 @@ multiCCC <- function( data , binary.params = NULL ,  anova.column = NULL,
   message( '[ ', format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' ] ','Done. Total runtime: ', hms::as_hms( as.numeric( run.end - run.start, units = "secs") ) ,'.' )
   return(  oplist )
 }
-
-
 
 
