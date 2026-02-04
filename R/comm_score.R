@@ -575,8 +575,10 @@ scoreLR <- function( exp,meta.data,sample,celltype,
     
   }, mc.cores = threads   ) %>% rbindlist_n( n = 2000 , use.names = F )
   colnames( detect_exp ) <- c( 'sample' , 'celltype', 'gene', 'prob' ,'reserved'   )
-  
-  
+  #
+  myfilter <- detect_exp[ which(detect_exp$reserved  == 'Y') , ]
+  exp <- exp[,colnames(exp) %in% myfilter$gene] %>% as.matrix()
+
   ###LRscore
   message( '[Step 2/2 | ', format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' ] ','Calculating communication strength score (LRscore).'  )
   all_lrDB <- data.frame( used.DB = c( "Consensus","Baccin2019","CellCall","CellChatDB",
