@@ -381,9 +381,7 @@ multiCCC <- function( data , binary.params = NULL ,  anova.column = NULL,
     library(parallel)
     library(lmerTest)
   })
-  
-  ###threads
-  if( is.null(threads) ){  threads <- parallel::detectCores()   }
+
   
   ###
   oplist <- list( )
@@ -419,5 +417,7 @@ multiCCC <- function( data , binary.params = NULL ,  anova.column = NULL,
   message( '[ ', format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' ] ','Done. Total runtime: ', hms::as_hms( as.numeric( run.end - run.start, units = "secs") ) ,'.' )
   return(  oplist )
 }
+
+
 
 
