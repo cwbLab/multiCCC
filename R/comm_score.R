@@ -34,6 +34,8 @@ rbindlist_n <- function(l, n = 10000, max_chunks = NULL, fill = FALSE, use.names
   return(result)
 }
 
+
+
 wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.7 , mem.max = 16 , pb = T ,time = F ) {
   start_time <- Sys.time()
   if( time ){ message( wb.log_time_title() , wb.log_time_start_end() , 'Tasks: ' , length(X) ,'.'  )  }
@@ -104,46 +106,47 @@ wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.7 , mem.max =
 
     #5
     final_results <- vector("list", length(X))
-
     total_chunks <- length(indices)
-    message(paste0("Total chunk: ", total_chunks ))
+    #
+    progressr::with_progress({
+      a <- 1:total_chunks
+      mypb<- progressr::progressor(steps = length(a))
 
-    for (i in seq_along(indices)){
-      message(paste0("Chunk number: ", i, ". Surplus: ", total_chunks - i))
-      #
-      curr_idx <- indices[[i]]
+      for (i in seq_along(indices)){
+        #
+        curr_idx <- indices[[i]]
 
-      #
-      current_used_gb <- get_used_mem() / 1024
-      available_gb <- limit_mem_gb - current_used_gb
+        #
+        current_used_gb <- get_used_mem() / 1024
+        available_gb <- limit_mem_gb - current_used_gb
 
-      #
-      mem_allowed_cores <- max(1, floor(available_gb / (avg_mem_per_task_mb / 1024)))
-      current_cores <- min(target_threads, mem_allowed_cores)
+        #
+        mem_allowed_cores <- max(1, floor(available_gb / (avg_mem_per_task_mb / 1024)))
+        current_cores <- min(target_threads, mem_allowed_cores)
 
-      #
-      if( pb ){
-        batch_res <- pbmcapply::pbmclapply(
-          X[curr_idx],
-          FUN,
-          ...,
-          mc.cores = current_cores
-        )
-      }else{
+        #
         batch_res <- parallel::mclapply(
           X[curr_idx],
           FUN,
           ...,
           mc.cores = current_cores
         )
+        final_results[curr_idx] <- batch_res
+        #
+        rm(batch_res)
+        gc(full = TRUE)
+        #
+        mypb()
       }
 
-      final_results[curr_idx] <- batch_res
-
-      #
-      rm(batch_res)
-      gc(full = TRUE)
-    }
+    },
+    handlers = progressr::handlers(  progressr::handler_progress(
+      format = "[:bar] :percent | Elapsed: :elapsed | ETA: :eta",
+      clear = FALSE
+    )),
+    enable = pb
+    )
+    #
   }else{
     #
     if(pb){
@@ -163,7 +166,6 @@ wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.7 , mem.max =
   #
   return(final_results)
 }
-
 
 
 
