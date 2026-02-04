@@ -22,6 +22,7 @@ Imports:
 	parallel,
 	plotthis,
 	presto,
+    progressr,
 	reshape2,
 	Seurat,
 	SingleCellExperiment,
