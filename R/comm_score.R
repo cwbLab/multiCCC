@@ -203,7 +203,7 @@ cci_lrscore <- function( exp , meta.data , sample , celltype , LR.ref, lr.databa
   samples <-  meta.data[[sample]] %>% unique() %>% as.character()
   celltypes <- meta.data[[celltype]] %>% unique() %>% as.character()
   #
-  all_group <- mclapply( celltypes , function(x){
+  all_group <- lapply( celltypes , function(x){
     temp <- lapply(celltypes, function(y){
       op <- data.table(   source  = x ,
                           target = y,
@@ -213,7 +213,7 @@ cci_lrscore <- function( exp , meta.data , sample , celltype , LR.ref, lr.databa
       )
       return(op)
     }) %>% rbindlist()
-  },mc.cores = threads   ) %>% rbindlist() %>% data.frame()
+  }  ) %>% rbindlist() %>% data.frame()
   
   all_group$st <- paste( all_group$source, all_group$target , sep = '_'  )
   all_group$st2 <- paste( all_group$source, all_group$target , sep =  rawToChar(as.raw(c(0xE2, 0x86, 0x92)))  )
@@ -257,7 +257,9 @@ cci_lrscore <- function( exp , meta.data , sample , celltype , LR.ref, lr.databa
 
 #
 liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.species,LR.method,LR.ref,
-                           min.cell  , min.prob , threads ){
+                           min.cell  , min.prob , threads , liana_threads = NULL  ){
+  #
+  if( is.null(threads) ){  liana_threads <- parallel::detectCores()   }else{  liana_threads <- threads  }
   #
   sce <- SingleCellExperiment::SingleCellExperiment(
     assays = list(counts = t(as.matrix(exp))),
@@ -284,7 +286,7 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
   samples <-  meta.data[[sample]] %>% unique() %>% as.character()
   celltypes <- meta.data[[celltype]] %>% unique() %>% as.character()
   #
-  all_group <- mclapply( celltypes , function(x){
+  all_group <- lapply( celltypes , function(x){
     temp <- lapply(celltypes, function(y){
       op <- data.table(   source  = x ,
                           target = y,
@@ -293,7 +295,7 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
       )
       return(op)
     }) %>% rbindlist()
-  },mc.cores = threads   ) %>% rbindlist() %>% data.frame()
+  }  ) %>% rbindlist() %>% data.frame()
   
   all_group$st <- paste( all_group$source, all_group$target , sep = '_'  )
   all_group$st2 <- paste( all_group$source, all_group$target , sep =  rawToChar(as.raw(c(0xE2, 0x86, 0x92)))  )
@@ -317,7 +319,7 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
                                             expr_prop = min.prob,
                                             assay = 'logcounts',
                                             assay.type= 'logcounts',
-                                            parallelize =T,  workers = threads
+                                            parallelize =T,  workers = liana_threads
             )
           )
         )
@@ -333,7 +335,7 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
       liana_res$lr <- paste( liana_res$ligand, liana_res$receptor , sep = '_'  )
       liana_res$CCC.ID <- paste( liana_res$st , liana_res$lr , sep = '.' )
       #
-      myres <- mclapply( all_group$CCC.ID , function(x){
+      myres <- wb.smc( all_group$CCC.ID , function(x){
         op = 0
         if(  x %in% liana_res$CCC.ID ){ op = liana_res$LRscore[ which( liana_res$CCC.ID == x )  ]   }
         return( op )
@@ -355,7 +357,7 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
                                             expr_prop = min.prob,
                                             assay = 'logcounts',
                                             assay.type= 'logcounts',
-                                            parallelize =T,  workers = threads
+                                            parallelize =T,  workers = liana_threads
             )
           )
         )
@@ -371,7 +373,7 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
       liana_res$lr <- paste( liana_res$ligand, liana_res$receptor , sep = '_'  )
       liana_res$CCC.ID <- paste( liana_res$st , liana_res$lr , sep = '.' )
       #
-      myres <- mclapply( all_group$CCC.ID , function(x){
+      myres <- wb.smc( all_group$CCC.ID , function(x){
         op = 0
         if(  x %in% liana_res$CCC.ID ){ op = liana_res$weight_sc[ which( liana_res$CCC.ID == x )  ]   }
         return( op )
@@ -393,7 +395,7 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
                                             expr_prop = min.prob,
                                             assay = 'logcounts',
                                             assay.type= 'logcounts',
-                                            parallelize =T,  workers = threads
+                                            parallelize =T,  workers = liana_threads
             )
           )
         )
@@ -409,7 +411,7 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
       liana_res$lr <- paste( liana_res$ligand, liana_res$receptor , sep = '_'  )
       liana_res$CCC.ID <- paste( liana_res$st , liana_res$lr , sep = '.' )
       #
-      myres <- mclapply( all_group$CCC.ID , function(x){
+      myres <- wb.smc(all_group$CCC.ID , function(x){
         op = 0
         if(  x %in% liana_res$CCC.ID ){ op = liana_res$logfc_comb[ which( liana_res$CCC.ID == x )  ]   }
         return( op )
@@ -431,7 +433,7 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
                                             expr_prop = min.prob,
                                             assay = 'logcounts',
                                             assay.type= 'logcounts',
-                                            parallelize =T,  workers = threads
+                                            parallelize =T,  workers = liana_threads
             )
           )
         )
@@ -447,7 +449,7 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
       liana_res$lr <- paste( liana_res$ligand, liana_res$receptor , sep = '_'  )
       liana_res$CCC.ID <- paste( liana_res$st , liana_res$lr , sep = '.' )
       #
-      myres <- mclapply( all_group$CCC.ID , function(x){
+      myres <- wb.smc( all_group$CCC.ID , function(x){
         op = 0
         if(  x %in% liana_res$CCC.ID ){ op = liana_res$prod_weight[ which( liana_res$CCC.ID == x )  ]   }
         return( op )
@@ -469,7 +471,7 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
                                             expr_prop = min.prob,
                                             assay = 'logcounts',
                                             assay.type= 'logcounts',
-                                            parallelize = T,  workers = threads
+                                            parallelize = T,  workers = liana_threads
             )
           )
         )
@@ -485,7 +487,7 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
       liana_res$lr <- paste( liana_res$ligand, liana_res$receptor , sep = '_'  )
       liana_res$CCC.ID <- paste( liana_res$st , liana_res$lr , sep = '.' )
       #
-      myres <- mclapply( all_group$CCC.ID , function(x){
+      myres <- wb.smc( all_group$CCC.ID , function(x){
         op = 0
         if(  x %in% liana_res$CCC.ID ){ op = liana_res$crosstalk_score[ which( liana_res$CCC.ID == x )  ]   }
         return( op )
@@ -509,7 +511,7 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
                                             expr_prop = min.prob,
                                             assay = 'logcounts',
                                             assay.type= 'logcounts',
-                                            parallelize = F,  workers = threads,
+                                            parallelize = F,  workers = liana_threads,
                                             cellchat.params = list(  organism = LR.species ,
                                                                      de_thresh = 2 ,
                                                                      nboot = 500 ,
@@ -532,7 +534,7 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
       liana_res$lr <- paste( liana_res$ligand, liana_res$receptor , sep = '_'  )
       liana_res$CCC.ID <- paste( liana_res$st , liana_res$lr , sep = '.' )
       #
-      myres <- mclapply( all_group$CCC.ID , function(x){
+      myres <- wb.smc( all_group$CCC.ID , function(x){
         op = 0
         if(  x %in% liana_res$CCC.ID ){ op = liana_res$prob[ which( liana_res$CCC.ID == x )  ]   }
         return( op )
@@ -556,7 +558,7 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
                                             expr_prop = min.prob,
                                             assay = 'logcounts',
                                             assay.type= 'logcounts',
-                                            parallelize = F,  workers = threads,
+                                            parallelize = F,  workers = liana_threads,
                                             cellphonedb.params = list(  score_col = 'LRscore' )
             )
             #
@@ -574,7 +576,7 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
       liana_res$lr <- paste( liana_res$ligand, liana_res$receptor , sep = '_'  )
       liana_res$CCC.ID <- paste( liana_res$st , liana_res$lr , sep = '.' )
       #
-      myres <- mclapply( all_group$CCC.ID , function(x){
+      myres <- wb.smc( all_group$CCC.ID , function(x){
         op = 0
         if(  x %in% liana_res$CCC.ID ){ op = liana_res$lr.mean[ which( liana_res$CCC.ID == x )  ]   }
         return( op )
@@ -653,9 +655,6 @@ scoreLR <- function( exp,meta.data,sample,celltype,
       library(SingleCellExperiment)
     })
   )
-
-  ###threads
-  if( is.null(threads) ){  threads <- parallel::detectCores()   }
   
   ###LR.source
   if(  is.data.frame( LR.source ) ){
