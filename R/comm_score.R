@@ -79,7 +79,7 @@ wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.8 , mem.max =
     mem_after <- get_used_mem()
     
     #
-    avg_mem_per_task_mb <- max((mem_after - mem_before) / sample_size, 0.1)
+    avg_mem_per_task_mb <- max((mem_after - mem_before) / sample_size, 0.1) * 1.2
     rm(test_results); gc()
     
     #3
@@ -121,7 +121,7 @@ wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.8 , mem.max =
         available_gb <- limit_mem_gb - current_used_gb
         
         #
-        mem_allowed_cores <- max(1, floor(available_gb / (avg_mem_per_task_mb / 1024)))
+        mem_allowed_cores <- max(1, floor( (available_gb / (avg_mem_per_task_mb / 1024) ) * 0.9  ) )
         current_cores <- min(target_threads, mem_allowed_cores)
         
         #
