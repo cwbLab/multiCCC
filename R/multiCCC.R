@@ -48,7 +48,7 @@ get_binary <- function( data , group , g1 , g2, permutation , p.adjust.method , 
     #
     if( is.na(op[['p']]) ){ return(NULL) }else{ return( op ) }
     
-  } ,mc.cores = threads ) 
+  } ,mc.cores = threads , mc.preschedule = FALSE) 
   #
   null_res <- vapply(res, is.null, logical(1))
   res <- res[  !null_res  ] %>% transpose() %>% as.data.table() %>% setDF()
@@ -119,7 +119,7 @@ get_anova <-  function( data , group , p.adjust.method, threads ){
     #
     if( is.na(op[['p']]) ){ return(NULL) }else{ return( op ) }
     
-  } ,mc.cores = threads )
+  } ,mc.cores = threads, mc.preschedule = FALSE )
   #
   null_res <- vapply(res, is.null, logical(1))
   res <- res[  !null_res  ] %>% transpose() %>% as.data.table() %>% setDF()
@@ -204,7 +204,7 @@ get_glm <- function(  data , group , covariance , p.adjust.method , threads ){
     #
     if( is.na(op[['p']]) ){ return(NULL) }else{ return( op ) }
     
-  } , mc.cores = threads )
+  } , mc.cores = threads , mc.preschedule = FALSE)
   #
   null_res <- vapply(res, is.null, logical(1))
   res <- res[  !null_res  ] %>% transpose() %>% as.data.table() %>% setDF()
@@ -268,6 +268,7 @@ get_time <- function(  data , time , replicate , covariance , p.adjust.method , 
   
     })
   )
+  
   model_res <- model_res[ ! unlist( lapply( model_res , is.null   ) )    ]
   
   #
@@ -289,7 +290,7 @@ get_time <- function(  data , time , replicate , covariance , p.adjust.method , 
     #
     if( is.na(op[['p']]) ){ return(NULL) }else{ return( op ) }
     
-  } , mc.cores = threads )
+  } , mc.cores = threads , mc.preschedule = FALSE)
   #
   null_res <- vapply(res, is.null, logical(1))
   res <- res[  !null_res  ] %>% transpose() %>% as.data.table() %>% setDF()
@@ -324,7 +325,7 @@ get_time <- function(  data , time , replicate , covariance , p.adjust.method , 
 #' Detect differential CCC (cell–cell communication) events.
 #'
 #' @param data The object returned by the scoreLR function.
-#' @param binary.params A list object with the format list(group = '', g1 = '', g2 = ''), where group represents a column name in meta.data, and the fold change (FC) in the results is calculated as g1/g2.
+#' @param binary.params A list object with the format list(group = '', g1 = '', g2 = '') or list(group = '', g1 = '', g2 = '', permutation = 1000 ), where group represents a column name in meta.data, and the fold change (FC) in the results is calculated as g1/g2.
 #' @param anova.column A column name in meta.data based on which an ANOVA test is performed.
 #' @param glm.column A column name in meta.data used to fit a GLM model.
 #' @param time.course.params Provide a list object with the format list(time = '', replicate = ''), where both time and replicate are column names in meta.data of numeric type. time represents the time point, and replicate represents the biological replicate.
