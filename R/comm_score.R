@@ -555,12 +555,12 @@ scoreLR <- function( exp,meta.data,sample,celltype,
   detect_exp <- pbmclapply( colnames(exp) ,function(gene){
     level1 <-  lapply(samples, function(m){
       level2 <- lapply(celltypes, function(n){
-        ds <- exp[  meta.data[[sample]] == m & meta.data[[celltype]] == n   ,  gene  ]
+        ds <- exp[  meta.data[[sample]] == m & meta.data[[celltype]] == n   ,  gene  ] %>% as.numeric()
         #
         my.return='N'
         prob = 0
         if( length(ds) > 0 ){
-          prob = length(which(ds <= min.exp)) / length(ds)
+          prob = length(which(ds >= min.exp)) / length(ds)
           if( length(ds) >= min.cell &  prob >= min.prob   ){
             my.return = 'Y'
           }
