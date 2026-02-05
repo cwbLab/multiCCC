@@ -47,17 +47,17 @@ split_vec <- function(x, chunk = 3, min_last = 2) {
 }
 
 
-wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.8 , mem.max = 16 , pb = T ,time = F){
+wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.8 , mem.max = 16 , pb = T ,time = F ){
   start_time <- Sys.time()
-  if( time ){ message( wb.log_time_title() , wb.log_time_start_end() , 'Tasks: ' , length(X) ,'.'  )  }
-  
+
   #1
   threads = mc.cores
   is_windows <- .Platform$OS.type == "windows"
   total_cores <- parallel::detectCores()
-  
+
   #windows
   if (is_windows){
+    if( time ){ message( wb.log_time_title() , wb.log_time_start_end() , 'Tasks: ' , length(X) ,'.'  )  }
     #
     if(pb){
       res <- pbmcapply::pbmclapply(X, FUN, ... ,mc.cores = 1 )
@@ -72,81 +72,61 @@ wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.8 , mem.max =
     }
     return(res)
   }
-  
+
   #
   if (  is.null(threads) ){
     target_threads <- total_cores - 1
     target_threads <- max(1, min(target_threads, total_cores))
-    
-    
+
+
     #2
     sample_size <- min(5, length(X))
     sample_idx <- sample(seq_along(X), sample_size)
-    
+
     #
-    get_total_mem_mb <- function(){
-      res <- tryCatch({
-        if (Sys.info()["sysname"] == "Linux") {
-          mem_kb <- as.numeric(system("awk '/MemAvailable/ {print $2}' /proc/meminfo", intern = TRUE))
-          mem_kb / 1024
-        } else if (Sys.info()["sysname"] == "Darwin") {
-          mem_bytes <- as.numeric(system("sysctl -n hw.memsize", intern = TRUE))
-          mem_bytes*0.7 / 1024^2
-        } else { NA }
-      }, error = function(e) NA)
-      return(res)
-    }
     mean_used <- base::lapply(sample_idx,function(temp_idx){
-      mem_before <- get_total_mem_mb()
-      test_results <- base::lapply(X[temp_idx], FUN, ...)
-      mem_after <- get_total_mem_mb()
-      abs(mem_before - mem_after)  
-    }
+        temp <- abs(  peakRAM::peakRAM({ test_results <- base::lapply(X[temp_idx], FUN, ...) } )[['Peak_RAM_Used_MiB']]  )
+	    }
     )
-    
+
     #
     avg_mem_per_task_mb <- max( median( as.numeric( mean_used ) ), 1) * 1.2
-    
+
     #3
     get_total_mem_gb <- function(){
       res <- tryCatch({
-        if (Sys.info()["sysname"] == "Linux") {
-          mem_kb <- as.numeric(system("awk '/MemAvailable/ {print $2}' /proc/meminfo", intern = TRUE))
-          mem_kb / 1024 / 1024
-        } else if (Sys.info()["sysname"] == "Darwin") {
-          mem_bytes <- as.numeric(system("sysctl -n hw.memsize", intern = TRUE))
-          mem_bytes*0.7 / 1024^3
-        } else { NA }
-      }, error = function(e) NA)
+		    ps::ps_system_memory()[['avail']] / 1024^3
+      }, error = function(e) NA )
       return(res)
     }
-    
+
     total_mem_gb <- get_total_mem_gb()
     limit_mem_gb <- if(!is.na(total_mem_gb)) total_mem_gb * mem.ratio.max else mem.max
-    
+
     #4
     max_safe_cores <- floor((limit_mem_gb / (avg_mem_per_task_mb / 1024)) * 0.9)
     max_safe_cores <- max(1, max_safe_cores)
-    
+
     chunk_size <- floor( max(2, min(length(X), max_safe_cores ) ) * 0.9 )
-    
-    myratio <- chunk_size / target_threads 
+
+    myratio <- chunk_size / target_threads
     if( avg_mem_per_task_mb >= 100 & myratio < 100 ){
       target_threads = floor( max( target_threads / 3,  target_threads / 100   ) )
     }
-    
+
     indices <- split(seq_along(X), ceiling(seq_along(X) / chunk_size))
-    
+
     #5
     final_results <- vector("list", length(X))
     total_chunks <- length(indices)
-    
+
     current_cores <- min( target_threads, max_safe_cores  )
+    if( time ){ message( wb.log_time_title() , wb.log_time_start_end() , 'Threads used: ', current_cores , '. Tasks total: ' , length(X) ,'.'  )  }
     #
     progressr::with_progress({
       a <- 1:total_chunks
       mypb<- progressr::progressor(steps = length(a))
-      
+
       for (i in seq_along(indices)){
         #
         curr_idx <- indices[[i]]
@@ -161,7 +141,7 @@ wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.8 , mem.max =
         #
         mypb()
       }
-      
+
     },
     handlers = progressr::handlers(  progressr::handler_progress(
       format = "[:bar] :percent | Elapsed: :elapsed | ETA: :eta",
@@ -179,7 +159,7 @@ wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.8 , mem.max =
     }
     #
   }
-  
+
   #
   end_time <- Sys.time()
   if( time ){ message( wb.log_time_title() ,
@@ -189,6 +169,7 @@ wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.8 , mem.max =
   #
   return(final_results)
 }
+
 
 #
 get_database <- function( species  , source ){
