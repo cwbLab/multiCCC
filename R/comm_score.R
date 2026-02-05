@@ -655,7 +655,7 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
 #'
 #' @export
 #'
-scoreLR2 <- function( exp,meta.data,sample,celltype,
+scoreLR <- function( exp,meta.data,sample,celltype,
                       LR.species = 'human', LR.source = 'Consensus', LR.method = 'SingleCellSignalR',
                       min.cell = 10, min.exp = 0.1, min.prob = 0.3,
                       threads = NULL
