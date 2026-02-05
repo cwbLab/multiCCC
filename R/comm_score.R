@@ -35,7 +35,7 @@ rbindlist_n <- function(l, n = 10000, max_chunks = NULL, fill = FALSE, use.names
 }
 
 
-wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.8 , mem.max = 16 , pb = F ,time = F) {
+wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.8 , mem.max = 16 , pb = T ,time = F){
   start_time <- Sys.time()
   if( time ){ message( wb.log_time_title() , wb.log_time_start_end() , 'Tasks: ' , length(X) ,'.'  )  }
   
@@ -68,29 +68,42 @@ wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.8 , mem.max =
     
     
     #2
-    sample_size <- min(3, length(X))
+    sample_size <- min(5, length(X))
     sample_idx <- sample(seq_along(X), sample_size)
     
     #
-    get_used_mem <- function() sum(gc()[, 2])
-    
-    mem_before <- get_used_mem()
-    test_results <- base::lapply(X[sample_idx], FUN, ...)
-    mem_after <- get_used_mem()
-    
-    #
-    avg_mem_per_task_mb <- max((mem_after - mem_before) / sample_size, 0.1) * 1.2
-    rm(test_results); gc()
-    
-    #3
-    get_total_mem_gb <- function() {
+    get_total_mem_mb <- function(){
       res <- tryCatch({
         if (Sys.info()["sysname"] == "Linux") {
-          mem_kb <- as.numeric(system("awk '/MemTotal/ {print $2}' /proc/meminfo", intern = TRUE))
+          mem_kb <- as.numeric(system("awk '/MemAvailable/ {print $2}' /proc/meminfo", intern = TRUE))
+          mem_kb / 1024
+        } else if (Sys.info()["sysname"] == "Darwin") {
+          mem_bytes <- as.numeric(system("sysctl -n hw.memsize", intern = TRUE))
+          mem_bytes*0.7 / 1024^2
+        } else { NA }
+      }, error = function(e) NA)
+      return(res)
+    }
+    mean_used <- base::lapply(sample_idx,function(temp_idx){
+      mem_before <- get_total_mem_mb()
+      test_results <- base::lapply(X[temp_idx], FUN, ...)
+      mem_after <- get_total_mem_mb()
+      abs(mem_before - mem_after)  
+    }
+    )
+    
+    #
+    avg_mem_per_task_mb <- max( median( as.numeric( mean_used ) ), 1) * 1.2
+
+    #3
+    get_total_mem_gb <- function(){
+      res <- tryCatch({
+        if (Sys.info()["sysname"] == "Linux") {
+          mem_kb <- as.numeric(system("awk '/MemAvailable/ {print $2}' /proc/meminfo", intern = TRUE))
           mem_kb / 1024 / 1024
         } else if (Sys.info()["sysname"] == "Darwin") {
           mem_bytes <- as.numeric(system("sysctl -n hw.memsize", intern = TRUE))
-          mem_bytes / 1024^3
+          mem_bytes*0.7 / 1024^3
         } else { NA }
       }, error = function(e) NA)
       return(res)
@@ -100,13 +113,23 @@ wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.8 , mem.max =
     limit_mem_gb <- if(!is.na(total_mem_gb)) total_mem_gb * mem.ratio.max else mem.max
     
     #4
-    max_tasks_per_batch <- floor((limit_mem_gb / (avg_mem_per_task_mb / 1024)) * 0.9)
-    chunk_size <- floor( min( max_tasks_per_batch , length(X) ) * 0.9 )
+    max_safe_cores <- floor((limit_mem_gb / (avg_mem_per_task_mb / 1024)) * 0.9)
+    max_safe_cores <- max(1, max_safe_cores)
+    
+    chunk_size <- floor( max(2, min(length(X), max_safe_cores ) ) * 0.9 )
+    
+    myratio <- chunk_size / target_threads 
+    if( avg_mem_per_task_mb >= 100 & myratio < 100 ){
+      target_threads = floor( max( target_threads / 3,  target_threads / 100   ) )
+    }
+    
     indices <- split(seq_along(X), ceiling(seq_along(X) / chunk_size))
     
     #5
     final_results <- vector("list", length(X))
     total_chunks <- length(indices)
+    
+    current_cores <- min( target_threads, max_safe_cores  )
     #
     progressr::with_progress({
       a <- 1:total_chunks
@@ -115,15 +138,6 @@ wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.8 , mem.max =
       for (i in seq_along(indices)){
         #
         curr_idx <- indices[[i]]
-        
-        #
-        current_used_gb <- get_used_mem() / 1024
-        available_gb <- limit_mem_gb - current_used_gb
-        
-        #
-        mem_allowed_cores <- max(1, floor( (available_gb / (avg_mem_per_task_mb / 1024) ) * 0.9  ) )
-        current_cores <- min(target_threads, mem_allowed_cores)
-        
         #
         batch_res <- parallel::mclapply(
           X[curr_idx],
@@ -132,9 +146,6 @@ wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.8 , mem.max =
           mc.cores = current_cores
         )
         final_results[curr_idx] <- batch_res
-        #
-        rm(batch_res)
-        gc()
         #
         mypb()
       }
@@ -166,8 +177,6 @@ wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.8 , mem.max =
   #
   return(final_results)
 }
-
-
 
 #
 get_database <- function( species  , source ){
@@ -221,33 +230,40 @@ cci_lrscore <- function( exp , meta.data , sample , celltype , LR.ref, lr.databa
   all_group$lr <- paste( all_group$ligand, all_group$receptor , sep = '_'  )
   all_group$CCC.ID <- paste( all_group$st , all_group$lr , sep = '.' )
   #
-  score <- wb.smc( 1:nrow(all_group),function(x){
-    #
-    info <- all_group[x,] %>% unlist() %>% as.character()
-    
-    res  <- lapply(samples, function(sam){
-      #detect
-      ld <- subset(detect_exp , sample == sam & celltype == info[1] & gene == info[3]  ) %>% pull(reserved)
-      rd <- subset(detect_exp , sample == sam & celltype == info[2] & gene == info[4]  ) %>% pull(reserved)
-      if(  length( which( c(ld,rd)  == 'Y'  )) != 2  ){
-        LRscore = 0
-      }else{
-        l.ds <- exp[  meta.data[[sample]] == sam & meta.data[[celltype]] == info[1]   ,  info[3]  ] %>% mean()
-        r.ds <- exp[  meta.data[[sample]] == sam & meta.data[[celltype]] == info[2]   ,  info[4]  ] %>% mean()
-        LRscore = ( l.ds * r.ds ) / ( l.ds + r.ds )
-      }
-      #
-      return( LRscore )
-    })
-    #
-    return( res )
-    
-  } , mc.cores = threads ) %>% transpose() %>% as.data.table()
-  score <- data.table::set( score, j = names(score), value = lapply(score, as.numeric) )
-  score <- setDF( score )
-  
+  all_group <- setDT( all_group  )
+  all_group_split <- split(all_group, by = "st2")
+  raw_group <- rbindlist(  all_group_split )
   #
-  rownames(score) <- all_group$CCC.ID
+  score <- pbmcapply::pbmclapply( 1:length( all_group_split ) , function( number  ){
+    all_group <- all_group_split[[ number ]]
+    score <- wb.smc( 1:nrow(all_group),function(x){
+      #
+      info <- all_group[x,] %>% unlist() %>% as.character()
+      
+      res  <- lapply(samples, function(sam){
+        #detect
+        ld <- subset(detect_exp , sample == sam & celltype == info[1] & gene == info[3]  ) %>% pull(reserved)
+        rd <- subset(detect_exp , sample == sam & celltype == info[2] & gene == info[4]  ) %>% pull(reserved)
+        if(  length( which( c(ld,rd)  == 'Y'  )) != 2  ){
+          LRscore = 0
+        }else{
+          l.ds <- exp[  meta.data[[sample]] == sam & meta.data[[celltype]] == info[1]   ,  info[3]  ] %>% mean()
+          r.ds <- exp[  meta.data[[sample]] == sam & meta.data[[celltype]] == info[2]   ,  info[4]  ] %>% mean()
+          LRscore = ( l.ds * r.ds ) / ( l.ds + r.ds )
+        }
+        #
+        return( LRscore )
+      })
+      #
+      return( res )
+      
+    } , mc.cores = threads , pb = F ) %>% transpose() %>% as.data.table()
+    score <- data.table::set( score, j = names(score), value = lapply(score, as.numeric) )
+    score <- setDF( score )
+    return(score)
+  } ,mc.cores = 1) %>% rbindlist(use.names = F) %>% setDF()
+  #
+  rownames(score) <- raw_group$CCC.ID
   colnames(score) <- samples
   score[ is.na(score)  ] <- 0
   #
@@ -260,29 +276,33 @@ cci_lrscore <- function( exp , meta.data , sample , celltype , LR.ref, lr.databa
 liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.species,LR.method,LR.ref,
                            min.cell  , min.prob , threads , liana_threads = NULL  ){
   #
-  if( is.null(threads) ){  liana_threads <- parallel::detectCores()   }else{  liana_threads <- threads  }
+  if( is.null(threads) ){  liana_threads <- parallel::detectCores()-1  }else{  liana_threads <- threads  }
   #
-  sce <- SingleCellExperiment::SingleCellExperiment(
-    assays = list(counts = t(as.matrix(exp))),
-    metadata = meta.data
+  suppressWarnings(
+    suppressMessages({
+      sce <- SingleCellExperiment::SingleCellExperiment(
+        assays = list(counts = t(as.matrix(exp))),
+        metadata = meta.data
+      )
+      sce$celltype <- meta.data[[ celltype ]] %>% as.character()
+      sce@assays@data@listData[["logcounts"]] <- sce@assays@data@listData[["counts"]]
+      #
+      if( LR.species == 'human' ){
+        resource <- lr.database
+        lr.database <- liana::select_resource( resource  ) %>% as.data.frame()
+        lr.database <- data.frame( ligand = lr.database[, grepl("source_genesymbol", colnames(lr.database) ) ],
+                                   receptor = lr.database[, grepl("target_genesymbol", colnames(lr.database) ) ]
+        )
+      }else if( LR.species == 'mouse' ){
+        resource <- 'MouseConsensus'
+        lr.database <- liana::select_resource( resource  ) %>% as.data.frame()
+        lr.database <- data.frame( ligand = lr.database$MouseConsensus.source_genesymbol,
+                                   receptor = lr.database$MouseConsensus.target_genesymbol
+        )
+      }
+    }
+    )
   )
-  sce$celltype <- meta.data[[ celltype ]] %>% as.character()
-  sce@assays@data@listData[["logcounts"]] <- sce@assays@data@listData[["counts"]]
-  #
-  if( LR.species == 'human' ){
-    resource <- lr.database
-    lr.database <- liana::select_resource( resource  ) %>% as.data.frame()
-    lr.database <- data.frame( ligand = lr.database[, grepl("source_genesymbol", colnames(lr.database) ) ],
-                               receptor = lr.database[, grepl("target_genesymbol", colnames(lr.database) ) ]
-    )
-  }else if( LR.species == 'mouse' ){
-    resource <- 'MouseConsensus'
-    lr.database <- liana::select_resource( resource  ) %>% as.data.frame()
-    lr.database <- data.frame( ligand = lr.database$MouseConsensus.source_genesymbol,
-                               receptor = lr.database$MouseConsensus.target_genesymbol
-    )
-  }
-  
   #
   samples <-  meta.data[[sample]] %>% unique() %>% as.character()
   celltypes <- meta.data[[celltype]] %>% unique() %>% as.character()
@@ -303,7 +323,7 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
   all_group$lr <- paste( all_group$ligand, all_group$receptor , sep = '_'  )
   all_group$CCC.ID <- paste( all_group$st , all_group$lr , sep = '.' )
   #
-  LRscore <- wb.smc(samples, function(x){
+  LRscore <- pbmcapply::pbmclapply(samples, function(x){
     sce_sub <- sce[, meta.data[[sample]] == x ]
     
     
@@ -340,7 +360,7 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
         op = 0
         if(  x %in% liana_res$CCC.ID ){ op = liana_res$LRscore[ which( liana_res$CCC.ID == x )  ]   }
         return( op )
-      }, mc.cores = threads  ) %>% unlist() %>% as.numeric()
+      }, mc.cores = threads  ,pb = F ) %>% unlist() %>% as.numeric()
       
     }
     
@@ -378,7 +398,7 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
         op = 0
         if(  x %in% liana_res$CCC.ID ){ op = liana_res$weight_sc[ which( liana_res$CCC.ID == x )  ]   }
         return( op )
-      }, mc.cores = threads  ) %>% unlist() %>% as.numeric()
+      }, mc.cores = threads  ,pb = F  ) %>% unlist() %>% as.numeric()
       
     }
     
@@ -416,7 +436,7 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
         op = 0
         if(  x %in% liana_res$CCC.ID ){ op = liana_res$logfc_comb[ which( liana_res$CCC.ID == x )  ]   }
         return( op )
-      }, mc.cores = threads  ) %>% unlist() %>% as.numeric()
+      }, mc.cores = threads  ,pb = F  ) %>% unlist() %>% as.numeric()
       
     }
     
@@ -454,7 +474,7 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
         op = 0
         if(  x %in% liana_res$CCC.ID ){ op = liana_res$prod_weight[ which( liana_res$CCC.ID == x )  ]   }
         return( op )
-      }, mc.cores = threads  ) %>% unlist() %>% as.numeric()
+      }, mc.cores = threads  ,pb = F  ) %>% unlist() %>% as.numeric()
       
     }
     
@@ -492,7 +512,7 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
         op = 0
         if(  x %in% liana_res$CCC.ID ){ op = liana_res$crosstalk_score[ which( liana_res$CCC.ID == x )  ]   }
         return( op )
-      }, mc.cores = threads  ) %>% unlist() %>% as.numeric()
+      }, mc.cores = threads  ,pb = F  ) %>% unlist() %>% as.numeric()
       
     }
     
@@ -539,7 +559,7 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
         op = 0
         if(  x %in% liana_res$CCC.ID ){ op = liana_res$prob[ which( liana_res$CCC.ID == x )  ]   }
         return( op )
-      }, mc.cores = threads  ) %>% unlist() %>% as.numeric()
+      }, mc.cores = threads ,pb = F   ) %>% unlist() %>% as.numeric()
       
     }
     
@@ -581,14 +601,14 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
         op = 0
         if(  x %in% liana_res$CCC.ID ){ op = liana_res$lr.mean[ which( liana_res$CCC.ID == x )  ]   }
         return( op )
-      }, mc.cores = threads  ) %>% unlist() %>% as.numeric()
+      }, mc.cores = threads  ,pb = F  ) %>% unlist() %>% as.numeric()
       
     }
     
     ############
     return( myres )
     
-  } , mc.cores = threads ) %>%  transpose() %>% as.data.table() %>%  transpose() %>%  setDF()
+  } , mc.cores = 1 ) %>%  transpose() %>% as.data.table() %>%  transpose() %>%  setDF()
   
   #########################################################
   colnames(LRscore) <- samples
@@ -597,9 +617,6 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
   return(  list( CCC.info = all_group , LRscore = LRscore ,  LR.ref = LR.ref  )  )
   
 }
-
-
-
 
 ######comm_score
 
@@ -638,10 +655,10 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
 #'
 #' @export
 #'
-scoreLR <- function( exp,meta.data,sample,celltype,
-                     LR.species = 'human', LR.source = 'Consensus', LR.method = 'SingleCellSignalR',
-                     min.cell = 10, min.exp = 0.1, min.prob = 0.3,
-                     threads = NULL
+scoreLR2 <- function( exp,meta.data,sample,celltype,
+                      LR.species = 'human', LR.source = 'Consensus', LR.method = 'SingleCellSignalR',
+                      min.cell = 10, min.exp = 0.1, min.prob = 0.3,
+                      threads = NULL
 ){
   ###
   run.start = Sys.time()
@@ -688,14 +705,14 @@ scoreLR <- function( exp,meta.data,sample,celltype,
       level2 <- lapply(celltypes, function(n){
         ds <- exp[  meta.data[[sample]] == m & meta.data[[celltype]] == n   ,  gene  ] %>% as.numeric()
         #
-    		my.return='N'
-    		prob = 0
-    		if( length(ds) > 0 ){
-    			prob = length(which(ds >= min.exp)) / length(ds)
-    			if( length(ds) >= min.cell &  prob >= min.prob   ){
-    				my.return = 'Y'
-    			}
-    		}
+        my.return='N'
+        prob = 0
+        if( length(ds) > 0 ){
+          prob = length(which(ds >= min.exp)) / length(ds)
+          if( length(ds) >= min.cell &  prob >= min.prob   ){
+            my.return = 'Y'
+          }
+        }
         #
         return(   list(sample = m , celltype = n , gene = gene , prob = prob , reserved = my.return )    )
         #
@@ -722,23 +739,15 @@ scoreLR <- function( exp,meta.data,sample,celltype,
   
   if ( LR.method == 'CCI'  ){
     if(  is.data.frame( LR.source ) ){ LR.ref <- 'custom' }else{ LR.ref <- all_lrDB$liana_DB[ all_lrDB$used.DB == LR.source ]   }
-    suppressMessages(
-      suppressWarnings(
-        ccc.res <- cci_lrscore( exp = exp , meta.data = meta.data, sample =  sample , celltype =  celltype, LR.ref = LR.ref,
-                                lr.database =lr.database , detect_exp = detect_exp , threads = threads )
-      )
-    )
-  }else{
-    if(  is.data.frame( LR.source ) ){ LR.source <- 'Consensus' }
-    LR.ref <- all_lrDB$liana_DB[ all_lrDB$used.DB == LR.source ]
+    ccc.res <- cci_lrscore( exp = exp , meta.data = meta.data, sample =  sample , celltype =  celltype, LR.ref = LR.ref,
+                            lr.database =lr.database , detect_exp = detect_exp , threads = threads )
     
-    suppressMessages(
-      suppressWarnings(
-        ccc.res <- liana_lrscore( exp = exp , meta.data = meta.data, sample =  sample , celltype =  celltype,
-                                  lr.database = LR.source , LR.species = LR.species,  LR.method = LR.method ,LR.ref = LR.ref,
-                                  min.cell = min.cell  , min.prob = min.prob , threads = threads )
-      )
-    )
+  }else{
+    if(  is.data.frame( LR.source ) | LR.source == "CCI"  ){ LR.source <- 'Consensus' }
+    LR.ref <- all_lrDB$liana_DB[ all_lrDB$used.DB == LR.source ]
+    ccc.res <- liana_lrscore( exp = exp , meta.data = meta.data, sample =  sample , celltype =  celltype,
+                              lr.database = LR.source , LR.species = LR.species,  LR.method = LR.method ,LR.ref = LR.ref,
+                              min.cell = 0 , min.prob = 0 , threads = threads )
   }
   
   ###output
