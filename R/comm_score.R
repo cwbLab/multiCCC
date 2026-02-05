@@ -34,6 +34,18 @@ rbindlist_n <- function(l, n = 10000, max_chunks = NULL, fill = FALSE, use.names
   return(result)
 }
 
+split_vec <- function(x, chunk = 3, min_last = 2) {
+  n <- length(x)
+  idx <- split(seq_len(n), ceiling(seq_len(n) / chunk))
+  
+  if (length(idx[[length(idx)]]) < min_last) {
+    idx[[length(idx) - 1]] <- c(idx[[length(idx) - 1]], idx[[length(idx)]])
+    idx <- idx[-length(idx)]
+  }
+  
+  lapply(idx, function(i) x[i])
+}
+
 
 wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.8 , mem.max = 16 , pb = T ,time = F){
   start_time <- Sys.time()
@@ -94,7 +106,7 @@ wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.8 , mem.max =
     
     #
     avg_mem_per_task_mb <- max( median( as.numeric( mean_used ) ), 1) * 1.2
-
+    
     #3
     get_total_mem_gb <- function(){
       res <- tryCatch({
@@ -656,9 +668,9 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
 #' @export
 #'
 scoreLR <- function( exp,meta.data,sample,celltype,
-                      LR.species = 'human', LR.source = 'Consensus', LR.method = 'SingleCellSignalR',
-                      min.cell = 10, min.exp = 0.1, min.prob = 0.3,
-                      threads = NULL
+                     LR.species = 'human', LR.source = 'Consensus', LR.method = 'SingleCellSignalR',
+                     min.cell = 10, min.exp = 0.1, min.prob = 0.3,
+                     threads = NULL
 ){
   ###
   run.start = Sys.time()
@@ -679,7 +691,11 @@ scoreLR <- function( exp,meta.data,sample,celltype,
     lr.database <- LR.source
     colnames( lr.database ) <- c(  'ligand' , 'receptor'  )
   }else{
-    lr.database <- get_database( species = LR.species , source = LR.source  )
+    suppressWarnings(
+      suppressMessages({
+        lr.database <- get_database( species = LR.species , source = LR.source  )
+      })
+    )
   }
   lr.genes <- unique(  lr.database$ligand , lr.database$receptor  ) %>% unique()
   
@@ -688,7 +704,7 @@ scoreLR <- function( exp,meta.data,sample,celltype,
   if( !identical( rownames(exp), rownames(meta.data) ) ){
     stop( simpleError( 'Mismatch between row names of exp and meta.data.'  ) )
   }
-  
+
   ###detect
   meta.data <- data.frame( meta.data )
   samples <-  meta.data[[sample]] %>% unique() %>% as.character()
@@ -737,19 +753,56 @@ scoreLR <- function( exp,meta.data,sample,celltype,
   all_lrDB$liana_DB <- paste( 'liana' , all_lrDB$used.DB , sep = '_'  )
   all_lrDB <- rbind(all_lrDB , c( 'CCI' , 'CCI' )  )
   
-  if ( LR.method == 'CCI'  ){
-    if(  is.data.frame( LR.source ) ){ LR.ref <- 'custom' }else{ LR.ref <- all_lrDB$liana_DB[ all_lrDB$used.DB == LR.source ]   }
-    ccc.res <- cci_lrscore( exp = exp , meta.data = meta.data, sample =  sample , celltype =  celltype, LR.ref = LR.ref,
-                            lr.database =lr.database , detect_exp = detect_exp , threads = threads )
-    
+  if( length( celltypes )  >= 3  ){
+    ccc.res.split <- split_vec( 1:length( celltypes ) ,chunk = 3, min_last = 2 )
+    #
+    ccc.res.split.result <- lapply(ccc.res.split, function(chunk){
+      scells <- celltypes[chunk]
+      #
+      smeta <- meta.data[ meta.data[[celltype]] %in% scells, ]
+      sexp <- exp[ rownames(exp) %in% rownames(smeta) ,   ]
+      
+      #
+      if ( LR.method == 'CCI'  ){
+        if(  is.data.frame( LR.source ) ){ LR.ref <- 'custom' }else{ LR.ref <- all_lrDB$liana_DB[ all_lrDB$used.DB == LR.source ]   }
+        ccc.res <- cci_lrscore( exp = sexp  , meta.data = smeta, sample =  sample , celltype =  celltype, LR.ref = LR.ref,
+                                lr.database =lr.database , detect_exp = detect_exp , threads = threads )
+      }else{
+        #
+        if(  is.data.frame( LR.source ) | LR.source == "CCI"  ){ LR.source <- 'Consensus' }
+        LR.ref <- all_lrDB$liana_DB[ all_lrDB$used.DB == LR.source ]
+        ccc.res <- liana_lrscore( exp = sexp , meta.data = smeta, sample =  sample , celltype =  celltype,
+                                  lr.database = LR.source , LR.species = LR.species,  LR.method = LR.method ,LR.ref = LR.ref,
+                                  min.cell = 0 , min.prob = 0 , threads = threads )
+      }
+      #
+      return( ccc.res )
+    })
+    #merge
+    ccc.res <- list(
+      CCC.info = do.call(rbind, lapply( ccc.res.split.result , function(x) x$CCC.info  ) ) ,
+      LRscore = do.call(rbind, lapply( ccc.res.split.result , function(x) x$LRscore  ) ) ,
+      LR.ref = LR.ref
+    )
+    #
   }else{
-    if(  is.data.frame( LR.source ) | LR.source == "CCI"  ){ LR.source <- 'Consensus' }
-    LR.ref <- all_lrDB$liana_DB[ all_lrDB$used.DB == LR.source ]
-    ccc.res <- liana_lrscore( exp = exp , meta.data = meta.data, sample =  sample , celltype =  celltype,
-                              lr.database = LR.source , LR.species = LR.species,  LR.method = LR.method ,LR.ref = LR.ref,
-                              min.cell = 0 , min.prob = 0 , threads = threads )
+    if ( LR.method == 'CCI'  ){
+      if(  is.data.frame( LR.source ) ){ LR.ref <- 'custom' }else{ LR.ref <- all_lrDB$liana_DB[ all_lrDB$used.DB == LR.source ]   }
+      ccc.res <- cci_lrscore( exp = exp , meta.data = meta.data, sample =  sample , celltype =  celltype, LR.ref = LR.ref,
+                              lr.database =lr.database , detect_exp = detect_exp , threads = threads )
+      
+    }else{
+      #
+      if(  is.data.frame( LR.source ) | LR.source == "CCI"  ){ LR.source <- 'Consensus' }
+      LR.ref <- all_lrDB$liana_DB[ all_lrDB$used.DB == LR.source ]
+      ccc.res <- liana_lrscore( exp = exp , meta.data = meta.data, sample =  sample , celltype =  celltype,
+                                lr.database = LR.source , LR.species = LR.species,  LR.method = LR.method ,LR.ref = LR.ref,
+                                min.cell = 0 , min.prob = 0 , threads = threads )
+    }
+    
   }
   
+
   ###output
   run.end = Sys.time()
   message( '[ ', format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' ] ','Done. Total runtime: ', hms::as_hms( as.numeric( run.end - run.start, units = "secs") ) ,'.' )
