@@ -753,13 +753,13 @@ scoreLR <- function( exp,meta.data,sample,celltype,
   all_lrDB$liana_DB <- paste( 'liana' , all_lrDB$used.DB , sep = '_'  )
   all_lrDB <- rbind(all_lrDB , c( 'CCI' , 'CCI' )  )
   
-  if( length( celltypes )  >= 3  ){
-    ccc.res.split <- split_vec( 1:length( celltypes ) ,chunk = 3, min_last = 2 )
+  if( length( samples )  >= 5  ){
+    ccc.res.split <- split_vec( 1:length( samples ) , chunk = 5, min_last = 2 )
     #
     ccc.res.split.result <- lapply(ccc.res.split, function(chunk){
-      scells <- celltypes[chunk]
+      s_samples <- samples[chunk]
       #
-      smeta <- meta.data[ meta.data[[celltype]] %in% scells, ]
+      smeta <- meta.data[ meta.data[[sample]] %in% s_samples, ]
       sexp <- exp[ rownames(exp) %in% rownames(smeta) ,   ]
       
       #
@@ -780,9 +780,9 @@ scoreLR <- function( exp,meta.data,sample,celltype,
     })
     #merge
     ccc.res <- list(
-      CCC.info = do.call(rbind, lapply( ccc.res.split.result , function(x) x$CCC.info  ) ) ,
-      LRscore = do.call(rbind, lapply( ccc.res.split.result , function(x) x$LRscore  ) ) ,
-      LR.ref = LR.ref
+      CCC.info = ccc.res.split.result[[1]][['CCC.info']] ,
+      LRscore = do.call(cbind, lapply( ccc.res.split.result , function(x) x$LRscore  ) ) ,
+      LR.ref = ccc.res.split.result[[1]][['LR.ref']]
     )
     #
   }else{
