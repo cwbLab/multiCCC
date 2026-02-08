@@ -98,8 +98,8 @@ plot_dot <- function( res , data.used = 'filtered.result',fill = 'p.adj', thresh
   if( nrow( final_res ) == 0  ){ stop(simpleError( 'No data were retained. Please adjust the filtering thresholds.' )  )    }
   
   #plot data
-  plot_data <- final_res[  , str_detect(colnames(final_res)  , 'mean'  ) ] %>% setDT()
-  plot_data <- plot_data[, (names(plot_data)) := lapply(.SD, as.numeric)] %>% setDF()
+  plot_data <- final_res[  , str_detect(colnames(final_res)  , 'mean'  ) ]
+  plot_data <- apply(plot_data , 2 ,as.numeric ) %>% as.data.frame()
   plot_data <- cbind(plot_data , final_res[ ,c( 'CCC.ID' , fill ) ]  )
   
   plot_data <- reshape2::melt( plot_data , id.vars =c('CCC.ID',fill))
