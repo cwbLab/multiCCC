@@ -1,3 +1,4 @@
+#
 filter_ccc <- function( ccc.res , ligand.method = NULL, receptor.method = NULL ){
   #
   methods <- names( ccc.res )
