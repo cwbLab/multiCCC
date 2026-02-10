@@ -736,6 +736,7 @@ scoreLR <- function( exp,meta.data,sample,celltype,
   
   if( length( samples )  >= 3  ){
     ccc.res.split <- split_vec( 1:length( samples ) , chunk = 3, min_last = 2 )
+    message('Chunks total: ', length( ccc.res.split ) , '.')
     #
     ccc.res.split.result <- lapply(ccc.res.split, function(chunk){
       s_samples <- samples[chunk]
