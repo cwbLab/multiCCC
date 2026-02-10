@@ -786,17 +786,6 @@ scoreLR <- function( exp,meta.data,sample,celltype,
   
   
   ###output
-  ccc.res$CCC.info <- ccc.res$CCC.info[ order(  ccc.res$CCC.info$CCC.ID )  , ]
-  ccc.res$LRscore <- ccc.res$LRscore[ order(  rownames( ccc.res$LRscore ) )  , ]
-  
-  #
-  ccc.res[["LRscore"]] <- apply( ccc.res[["LRscore"]] , 2 ,as.numeric) %>% as.data.frame()
-  filter_index <- which(rowSums( ccc.res[["LRscore"]] ) != 0)
-  
-  ccc.res$CCC.info <- ccc.res$CCC.info[  filter_index   ,  ] %>% setDF()
-  ccc.res$LRscore <- ccc.res$LRscore[  filter_index   ,  ] %>% setDF()
-  rownames( ccc.res$LRscore ) <- ccc.res$CCC.info$CCC.ID
-  
   run.end = Sys.time()
   message( '[ ', format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' ] ','Done. Total runtime: ', hms::as_hms( as.numeric( run.end - run.start, units = "secs") ) ,'.' )
   #
