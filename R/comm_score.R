@@ -698,9 +698,12 @@ scoreLR <- function( exp,meta.data,sample,celltype,
   message( '[Step 1/2 | ', format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' ] ','Checking the expression profiles of ligands and receptors.'  )
   
   #
+  library(data.table)
   new.data.table <- data.table( exp )
-  new.data.table <- new.data.table[ , c( 'sample','celltype' ) := list( meta.data[[sample]] , meta.data[[celltype]]  ) ]
+  new.data.table$sample <- meta.data[[sample]]
+  new.data.table$celltype <- meta.data[[celltype]] 
   print(1)
+  
   new.data.table <- dplyr::select( new.data.table , sample , celltype ,everything() ) %>% as.data.table()
   genes <- setdiff(names(new.data.table), c("sample", "celltype"))
   
