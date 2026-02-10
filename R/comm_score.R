@@ -49,12 +49,12 @@ split_vec <- function(x, chunk = 3, min_last = 2) {
 
 wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.8 , mem.max = 16 , pb = T ,time = F ){
   start_time <- Sys.time()
-
+  
   #1
   threads = mc.cores
   is_windows <- .Platform$OS.type == "windows"
   total_cores <- parallel::detectCores()
-
+  
   #windows
   if (is_windows){
     if( time ){ message( wb.log_time_title() , wb.log_time_start_end() , 'Tasks: ' , length(X) ,'.'  )  }
@@ -72,61 +72,61 @@ wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.8 , mem.max =
     }
     return(res)
   }
-
+  
   #
   if (  is.null(threads) ){
     target_threads <- total_cores - 1
     target_threads <- max(1, min(target_threads, total_cores))
-
-
+    
+    
     #2
     sample_size <- min(5, length(X))
     sample_idx <- sample(seq_along(X), sample_size)
-
+    
     #
     mean_used <- base::lapply(sample_idx,function(temp_idx){
-        temp <- abs(  peakRAM::peakRAM({ test_results <- base::lapply(X[temp_idx], FUN, ...) } )[['Peak_RAM_Used_MiB']]  )
-	    }
+      temp <- abs(  peakRAM::peakRAM({ test_results <- base::lapply(X[temp_idx], FUN, ...) } )[['Peak_RAM_Used_MiB']]  )
+    }
     )
-
+    
     #
     avg_mem_per_task_mb <- max( median( as.numeric( mean_used ) ), 1) * 1.2
-
+    
     #3
     get_total_mem_gb <- function(){
       res <- tryCatch({
-		    ps::ps_system_memory()[['avail']] / 1024^3
+        ps::ps_system_memory()[['avail']] / 1024^3
       }, error = function(e) NA )
       return(res)
     }
-
+    
     total_mem_gb <- get_total_mem_gb()
     limit_mem_gb <- if(!is.na(total_mem_gb)) total_mem_gb * mem.ratio.max else mem.max
-
+    
     #4
     max_safe_cores <- floor((limit_mem_gb / (avg_mem_per_task_mb / 1024)) * 0.9)
     max_safe_cores <- max(1, max_safe_cores)
-
+    
     chunk_size <- floor( max(2, min(length(X), max_safe_cores ) ) * 0.9 )
-
+    
     myratio <- chunk_size / target_threads
     if( avg_mem_per_task_mb >= 100 & myratio < 100 ){
       target_threads = floor( max( target_threads / 3,  target_threads / 100   ) )
     }
-
+    
     indices <- split(seq_along(X), ceiling(seq_along(X) / chunk_size))
-
+    
     #5
     final_results <- vector("list", length(X))
     total_chunks <- length(indices)
-
+    
     current_cores <- min( target_threads, max_safe_cores  )
     if( time ){ message( wb.log_time_title() , wb.log_time_start_end() , 'Threads used: ', current_cores , '. Tasks total: ' , length(X) ,'.'  )  }
     #
     progressr::with_progress({
       a <- 1:total_chunks
       mypb<- progressr::progressor(steps = length(a))
-
+      
       for (i in seq_along(indices)){
         #
         curr_idx <- indices[[i]]
@@ -141,7 +141,7 @@ wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.8 , mem.max =
         #
         mypb()
       }
-
+      
     },
     handlers = progressr::handlers(  progressr::handler_progress(
       format = "[:bar] :percent | Elapsed: :elapsed | ETA: :eta",
@@ -159,7 +159,7 @@ wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.8 , mem.max =
     }
     #
   }
-
+  
   #
   end_time <- Sys.time()
   if( time ){ message( wb.log_time_title() ,
@@ -237,7 +237,7 @@ cci_lrscore <- function( exp , meta.data , sample , celltype , LR.ref, lr.databa
         #detect
         ld <- subset(detect_exp , sample == sam & celltype == info[1] & gene == info[3]  ) %>% pull(reserved)
         rd <- subset(detect_exp , sample == sam & celltype == info[2] & gene == info[4]  ) %>% pull(reserved)
-        if(  length( which( c(ld,rd)  == 'Y'  )) != 2  ){
+        if(  length( which( c(ld,rd)  == 'Y'  )) != 2 ){
           LRscore = 0
         }else{
           l.ds <- exp[  meta.data[[sample]] == sam & meta.data[[celltype]] == info[1]   ,  info[3]  ] %>% mean()
@@ -682,10 +682,11 @@ scoreLR <- function( exp,meta.data,sample,celltype,
   
   ###exp,meta.data
   exp <- exp[,  colnames(exp) %in% lr.genes   ] %>% as.matrix()
+  exp <- exp[,  colSums(exp) != 0 ]
   if( !identical( rownames(exp), rownames(meta.data) ) ){
     stop( simpleError( 'Mismatch between row names of exp and meta.data.'  ) )
   }
-
+  
   ###detect
   meta.data <- data.frame( meta.data )
   samples <-  meta.data[[sample]] %>% unique() %>% as.character()
@@ -696,30 +697,32 @@ scoreLR <- function( exp,meta.data,sample,celltype,
   message(  paste(rep( '-' ,100  ) ,collapse = '' )   )
   message( '[Step 1/2 | ', format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' ] ','Checking the expression profiles of ligands and receptors.'  )
   
+  #
+  new.data.table <- data.table( exp )
+  new.data.table <- new.data.table[ , c( 'sample','celltype' ) := list( meta.data[[sample]] , meta.data[[celltype]]  ) ]
+  new.data.table <- dplyr::select( new.data.table , sample , celltype ,everything() ) %>% as.data.table()
+  genes <- setdiff(names(new.data.table), c("sample", "celltype"))
   
-  detect_exp <- wb.smc( colnames(exp) ,function(gene){
-    level1 <-  lapply(samples, function(m){
-      level2 <- lapply(celltypes, function(n){
-        ds <- exp[  meta.data[[sample]] == m & meta.data[[celltype]] == n   ,  gene  ] %>% as.numeric()
-        #
-        my.return='N'
-        prob = 0
-        if( length(ds) > 0 ){
-          prob = length(which(ds >= min.exp)) / length(ds)
-          if( length(ds) >= min.cell &  prob >= min.prob   ){
-            my.return = 'Y'
-          }
-        }
-        #
-        return(   list(sample = m , celltype = n , gene = gene , prob = prob , reserved = my.return )    )
-        #
-        
-      }) %>% rbindlist()
-      
-    }) %>% rbindlist()
-    
-  }, mc.cores = threads ) %>% rbindlist_n( n = 2000 , use.names = F )
+  detect1 <- new.data.table[,
+                            lapply(.SD, function(x) mean(x >= min.exp, na.rm = TRUE)),
+                            by = .(sample, celltype),
+                            .SDcols = genes
+  ]
+  detect2 <- new.data.table[, .(gt_Y = .N >= min.cell ),  by = .(sample, celltype)]
+  detect_exp <- melt(detect1, 
+                     id.vars = c("sample", "celltype"), 
+                     variable.name = "gene", 
+                     value.name = "ratio_greater_than_X")
+  detect_exp <- merge(
+    detect_exp,
+    detect2,
+    by = c("sample", "celltype"),
+    all.x = TRUE
+  )
+  detect_exp <- detect_exp[ , reserved := fifelse( ratio_greater_than_X >= min.prob & gt_Y , 'Y','N'   ) ]
+  detect_exp <- detect_exp[ , gt_Y := NULL ]
   colnames( detect_exp ) <- c( 'sample' , 'celltype', 'gene', 'prob' ,'reserved'   )
+  detect_exp <- setDF( detect_exp  )
   #
   myfilter <- detect_exp[ which(detect_exp$reserved  == 'Y') , ]
   exp <- exp[,  colnames(exp) %in% myfilter$gene   ] %>% as.matrix()
@@ -782,9 +785,21 @@ scoreLR <- function( exp,meta.data,sample,celltype,
     }
     
   }
-  
 
   ###output
+  ccc.res$CCC.info <- ccc.res$CCC.info[ order(  ccc.res$CCC.info$CCC.ID )  , ]
+  ccc.res$LRscore <- ccc.res$LRscore[ order(  rownames( ccc.res$LRscore ) )  , ]
+  
+  #
+  tdata <- ccc.res[["LRscore"]] %>% setDT()
+  ccc.res[["LRscore"]] <- ccc.res[["LRscore"]][, lapply(.SD, as.numeric)]
+  filter_index <- which(rowSums( ccc.res[["LRscore"]] ) != 0)
+  
+  ccc.res$CCC.info   <- ccc.res$CCC.info[  filter_index   ,  ] %>% setDF()
+  ccc.res$LRscore   <- ccc.res$LRscore[  filter_index   ,  ] %>% setDF()
+  rownames( ccc.res$LRscore ) <- ccc.res$CCC.info$CCC.ID
+  
+  #
   run.end = Sys.time()
   message( '[ ', format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' ] ','Done. Total runtime: ', hms::as_hms( as.numeric( run.end - run.start, units = "secs") ) ,'.' )
   #
