@@ -237,7 +237,7 @@ cci_lrscore <- function( exp , meta.data , sample , celltype , LR.ref, lr.databa
         #detect
         ld <- subset(detect_exp , sample == sam & celltype == info[1] & gene == info[3]  ) %>% pull(reserved)
         rd <- subset(detect_exp , sample == sam & celltype == info[2] & gene == info[4]  ) %>% pull(reserved)
-        if(  length( which( c(ld,rd)  == 'Y'  )) != 2 ){
+        if(  length( which( c(ld,rd)  == 'Y'  )) != 2  ){
           LRscore = 0
         }else{
           l.ds <- exp[  meta.data[[sample]] == sam & meta.data[[celltype]] == info[1]   ,  info[3]  ] %>% mean()
@@ -682,7 +682,6 @@ scoreLR <- function( exp,meta.data,sample,celltype,
   
   ###exp,meta.data
   exp <- exp[,  colnames(exp) %in% lr.genes   ] %>% as.matrix()
-  exp <- exp[,  colSums(exp) != 0 ]
   if( !identical( rownames(exp), rownames(meta.data) ) ){
     stop( simpleError( 'Mismatch between row names of exp and meta.data.'  ) )
   }
@@ -697,37 +696,30 @@ scoreLR <- function( exp,meta.data,sample,celltype,
   message(  paste(rep( '-' ,100  ) ,collapse = '' )   )
   message( '[Step 1/2 | ', format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' ] ','Checking the expression profiles of ligands and receptors.'  )
   
-  #
-  library(data.table)
-  new.data.table <- data.table( exp )
-  new.data.table$sample <- meta.data[[sample]]
-  new.data.table$celltype <- meta.data[[celltype]] 
-  print(1)
   
-  new.data.table <- dplyr::select( new.data.table , sample , celltype ,everything() ) %>% as.data.table()
-  genes <- setdiff(names(new.data.table), c("sample", "celltype"))
-  
-  detect1 <- new.data.table[,
-                            lapply(.SD, function(x) mean(x >= min.exp, na.rm = TRUE)),
-                            by = .(sample, celltype),
-                            .SDcols = genes
-  ]
-  detect2 <- new.data.table[, .(gt_Y = .N >= min.cell ),  by = .(sample, celltype)]
-  detect_exp <- melt(detect1, 
-                     id.vars = c("sample", "celltype"), 
-                     variable.name = "gene", 
-                     value.name = "ratio_greater_than_X")
-  detect_exp <- merge(
-    detect_exp,
-    detect2,
-    by = c("sample", "celltype"),
-    all.x = TRUE
-  ) %>% setDT()
-  print(2)
-  detect_exp <- detect_exp[ , reserved := fifelse( ratio_greater_than_X >= min.prob & gt_Y , 'Y','N'   ) ]
-  detect_exp <- detect_exp[ , gt_Y := NULL ]
+  detect_exp <- wb.smc( colnames(exp) ,function(gene){
+    level1 <-  lapply(samples, function(m){
+      level2 <- lapply(celltypes, function(n){
+        ds <- exp[  meta.data[[sample]] == m & meta.data[[celltype]] == n   ,  gene  ] %>% as.numeric()
+        #
+        my.return='N'
+        prob = 0
+        if( length(ds) > 0 ){
+          prob = length(which(ds >= min.exp)) / length(ds)
+          if( length(ds) >= min.cell &  prob >= min.prob   ){
+            my.return = 'Y'
+          }
+        }
+        #
+        return(   list(sample = m , celltype = n , gene = gene , prob = prob , reserved = my.return )    )
+        #
+        
+      }) %>% rbindlist()
+      
+    }) %>% rbindlist()
+    
+  }, mc.cores = threads ) %>% rbindlist_n( n = 2000 , use.names = F )
   colnames( detect_exp ) <- c( 'sample' , 'celltype', 'gene', 'prob' ,'reserved'   )
-  detect_exp <- setDF( detect_exp  )
   #
   myfilter <- detect_exp[ which(detect_exp$reserved  == 'Y') , ]
   exp <- exp[,  colnames(exp) %in% myfilter$gene   ] %>% as.matrix()
@@ -790,21 +782,20 @@ scoreLR <- function( exp,meta.data,sample,celltype,
     }
     
   }
-
+  
+  
   ###output
   ccc.res$CCC.info <- ccc.res$CCC.info[ order(  ccc.res$CCC.info$CCC.ID )  , ]
   ccc.res$LRscore <- ccc.res$LRscore[ order(  rownames( ccc.res$LRscore ) )  , ]
   
   #
-  tdata <- ccc.res[["LRscore"]] %>% setDT()
-  ccc.res[["LRscore"]] <- ccc.res[["LRscore"]][, lapply(.SD, as.numeric)]
+  ccc.res[["LRscore"]] <- apply( ccc.res[["LRscore"]] , 2 ,as.numeric) %>% as.data.frame()
   filter_index <- which(rowSums( ccc.res[["LRscore"]] ) != 0)
   
-  ccc.res$CCC.info   <- ccc.res$CCC.info[  filter_index   ,  ] %>% setDF()
-  ccc.res$LRscore   <- ccc.res$LRscore[  filter_index   ,  ] %>% setDF()
+  ccc.res$CCC.info <- ccc.res$CCC.info[  filter_index   ,  ] %>% setDF()
+  ccc.res$LRscore <- ccc.res$LRscore[  filter_index   ,  ] %>% setDF()
   rownames( ccc.res$LRscore ) <- ccc.res$CCC.info$CCC.ID
   
-  #
   run.end = Sys.time()
   message( '[ ', format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' ] ','Done. Total runtime: ', hms::as_hms( as.numeric( run.end - run.start, units = "secs") ) ,'.' )
   #
