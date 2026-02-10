@@ -700,6 +700,7 @@ scoreLR <- function( exp,meta.data,sample,celltype,
   #
   new.data.table <- data.table( exp )
   new.data.table <- new.data.table[ , c( 'sample','celltype' ) := list( meta.data[[sample]] , meta.data[[celltype]]  ) ]
+  print(1)
   new.data.table <- dplyr::select( new.data.table , sample , celltype ,everything() ) %>% as.data.table()
   genes <- setdiff(names(new.data.table), c("sample", "celltype"))
   
@@ -718,7 +719,8 @@ scoreLR <- function( exp,meta.data,sample,celltype,
     detect2,
     by = c("sample", "celltype"),
     all.x = TRUE
-  )
+  ) %>% setDT()
+  print(2)
   detect_exp <- detect_exp[ , reserved := fifelse( ratio_greater_than_X >= min.prob & gt_Y , 'Y','N'   ) ]
   detect_exp <- detect_exp[ , gt_Y := NULL ]
   colnames( detect_exp ) <- c( 'sample' , 'celltype', 'gene', 'prob' ,'reserved'   )
