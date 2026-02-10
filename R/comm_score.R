@@ -690,12 +690,10 @@ scoreLR <- function( exp,meta.data,sample,celltype,
   meta.data <- data.frame( meta.data )
   samples <-  meta.data[[sample]] %>% unique() %>% as.character()
   celltypes <-  meta.data[[celltype]] %>% unique() %>% as.character()
-  message(  paste(rep( '-' ,100  ) ,collapse = '' )   )
   message(  paste0( ">>> Samples ( n = ", length(samples) , ' ): ', paste( sort(samples) ,collapse = ', ' )   )  )
   message(  paste0( ">>> Cell types ( n = ", length( celltypes) , ' ): ', paste( sort(celltypes) ,collapse = ', ' )   )  )
-  message(  paste(rep( '-' ,100  ) ,collapse = '' )   )
-  message( '[Step 1/2 | ', format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' ] ','Checking the expression profiles of ligands and receptors.'  )
-  
+  message( ">>> Running..." )
+  message( '[ Step 1/2 | ', format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' ] ','Checking the expression profiles of ligands and receptors.'  )
   
   detect_exp <- wb.smc( colnames(exp) ,function(gene){
     level1 <-  lapply(samples, function(m){
@@ -722,10 +720,17 @@ scoreLR <- function( exp,meta.data,sample,celltype,
   colnames( detect_exp ) <- c( 'sample' , 'celltype', 'gene', 'prob' ,'reserved'   )
   #
   myfilter <- detect_exp[ which(detect_exp$reserved  == 'Y') , ]
-  exp <- exp[,  colnames(exp) %in% myfilter$gene   ] %>% as.matrix()
+  
+  #
+  meta.data <- meta.data[  which( meta.data[[sample]] %in% myfilter$sample ) , ]
+  exp <- exp[  match( rownames(meta.data) , rownames(exp)  ) ,  
+               colnames(exp) %in% myfilter$gene   
+  ] %>% as.matrix()
+  samples <-  meta.data[[sample]] %>% unique() %>% as.character()
+  celltypes <-  meta.data[[celltype]] %>% unique() %>% as.character()
   
   ###LRscore
-  message( '[Step 2/2 | ', format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' ] ','Calculating communication strength score (LRscore).'  )
+  message( '[ Step 2/2 | ', format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' ] ','Calculating communication strength score (LRscore).'  )
   all_lrDB <- data.frame( used.DB = c( "Consensus","Baccin2019","CellCall","CellChatDB",
                                        "Cellinker","CellPhoneDB","CellTalkDB","connectomeDB2020",
                                        "EMBRACE","Guide2Pharma","HPMR","ICELLNET","iTALK","Kirouac2010",
@@ -736,7 +741,7 @@ scoreLR <- function( exp,meta.data,sample,celltype,
   
   if( length( samples )  >= 3  ){
     ccc.res.split <- split_vec( 1:length( samples ) , chunk = 3, min_last = 2 )
-    message('Chunks total: ', length( ccc.res.split ) , '.')
+    message(' Chunks total: ', length( ccc.res.split ) , '.')
     #
     ccc.res.split.result <- lapply(ccc.res.split, function(chunk){
       s_samples <- samples[chunk]
@@ -787,7 +792,7 @@ scoreLR <- function( exp,meta.data,sample,celltype,
   
   ###output
   run.end = Sys.time()
-  message( '[ ', format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' ] ','Done. Total runtime: ', hms::as_hms( as.numeric( run.end - run.start, units = "secs") ) ,'.' )
+  message( '[ Done | ', format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' ] Total runtime: ', hms::as_hms( as.numeric( run.end - run.start, units = "secs") ) ,'.' )
   #
   return( list(
     CCC.info = ccc.res$CCC.info,
