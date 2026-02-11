@@ -744,7 +744,7 @@ scoreLR <- function( exp,meta.data,sample,celltype,
     #
     ccc.res.split.result <- lapply( 1:length(ccc.res.split), function(chunk){
       #
-      message( ' Subtask: ', chunk ,'/', length(ccc.res.split) )
+      message( '  Subtask: ', chunk ,'/', length(ccc.res.split) )
       
       s_samples <- samples[[chunk]]
       #
