@@ -741,10 +741,12 @@ scoreLR <- function( exp,meta.data,sample,celltype,
   
   if( length( samples )  >= 3  ){
     ccc.res.split <- split_vec( 1:length( samples ) , chunk = 3, min_last = 2 )
-    message(' Chunks total: ', length( ccc.res.split ) , '.')
     #
-    ccc.res.split.result <- lapply(ccc.res.split, function(chunk){
-      s_samples <- samples[chunk]
+    ccc.res.split.result <- lapply( 1:length(ccc.res.split), function(chunk){
+      #
+      message( ' Subtask: ', chunk ,'/', length(ccc.res.split) )
+      
+      s_samples <- samples[[chunk]]
       #
       smeta <- meta.data[ meta.data[[sample]] %in% s_samples, ]
       sexp <- exp[ rownames(exp) %in% rownames(smeta) ,   ]
@@ -775,7 +777,7 @@ scoreLR <- function( exp,meta.data,sample,celltype,
     df_list <- lapply(ccc.res.split.result, function(x) x[['LRscore']] ) 
     all_cols <- unique(unlist(lapply(df_list, colnames)))
     result_matrix <- matrix( 0,  nrow = length(row_vector),  ncol = length(all_cols),
-                            dimnames = list(row_vector, all_cols) )
+                             dimnames = list(row_vector, all_cols) )
     for (i in seq_along(df_list)) {
       #
       curr_df <- as.matrix(df_list[[i]])
@@ -814,7 +816,6 @@ scoreLR <- function( exp,meta.data,sample,celltype,
                                 lr.database = LR.source , LR.species = LR.species,  LR.method = LR.method ,LR.ref = LR.ref,
                                 min.cell = 0 , min.prob = 0 , threads = threads )
     }
-    
   }
   
   
