@@ -765,10 +765,38 @@ scoreLR <- function( exp,meta.data,sample,celltype,
       #
       return( ccc.res )
     })
+    
     #merge
+    all_ccc_info <- lapply(ccc.res.split.result, function(x) data.table( x[['CCC.info']] )) %>% rbindlist( use.names = TRUE )
+    final_ccc_info <- unique( all_ccc_info , by = "CCC.ID") %>% data.frame( check.names = F , check.rows = F )
+    row_vector <- final_ccc_info$CCC.ID
+    
+    #
+    df_list <- lapply(ccc.res.split.result, function(x) x[['LRscore']] ) 
+    all_cols <- unique(unlist(lapply(df_list, colnames)))
+    result_matrix <- matrix( 0,  nrow = length(row_vector),  ncol = length(all_cols),
+                            dimnames = list(row_vector, all_cols) )
+    for (i in seq_along(df_list)) {
+      #
+      curr_df <- as.matrix(df_list[[i]])
+      
+      # 
+      common_rows <- intersect(rownames(curr_df), row_vector)
+      common_cols <- intersect(colnames(curr_df), all_cols)
+      
+      #
+      if (length(common_rows) > 0 && length(common_cols) > 0) {
+        block <- curr_df[common_rows, common_cols, drop = FALSE]
+        storage.mode(block) <- "numeric"
+        #
+        result_matrix[common_rows, common_cols] <- as.matrix(block)
+      }
+    }
+    #
+    final_ccc_info <- final_ccc_info[ match( rownames(result_matrix) , final_ccc_info$CCC.ID ) ,  ]
     ccc.res <- list(
-      CCC.info = ccc.res.split.result[[1]][['CCC.info']] ,
-      LRscore = do.call(cbind, unname( lapply( ccc.res.split.result , function(x) x$LRscore  ) ) ) ,
+      CCC.info = final_ccc_info,
+      LRscore = data.frame( result_matrix ,check.names = F ,check.rows = F  ) ,
       LR.ref = ccc.res.split.result[[1]][['LR.ref']]
     )
     #
