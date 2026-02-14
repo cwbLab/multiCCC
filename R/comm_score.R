@@ -722,6 +722,7 @@ scoreLR <- function( exp,meta.data,sample,celltype,
   myfilter <- detect_exp[ which(detect_exp$reserved  == 'Y') , ]
   
   #
+  meta.data <- meta.data[  which( meta.data[[sample]] %in% myfilter$sample ) , ]
   exp <- exp[  match( rownames(meta.data) , rownames(exp)  ) ,  
                colnames(exp) %in% myfilter$gene   
   ] %>% as.matrix()
@@ -745,7 +746,7 @@ scoreLR <- function( exp,meta.data,sample,celltype,
       #
       message( '  Subtask: ', chunk ,'/', length(ccc.res.split) )
       
-      s_samples <- samples[[chunk]]
+      s_samples <- samples[ ccc.res.split[[chunk]] ]
       #
       smeta <- meta.data[ meta.data[[sample]] %in% s_samples, ]
       sexp <- exp[ rownames(exp) %in% rownames(smeta) ,   ]
