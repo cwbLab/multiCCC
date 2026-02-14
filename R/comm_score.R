@@ -722,7 +722,6 @@ scoreLR <- function( exp,meta.data,sample,celltype,
   myfilter <- detect_exp[ which(detect_exp$reserved  == 'Y') , ]
   
   #
-  meta.data <- meta.data[  which( meta.data[[sample]] %in% myfilter$sample ) , ]
   exp <- exp[  match( rownames(meta.data) , rownames(exp)  ) ,  
                colnames(exp) %in% myfilter$gene   
   ] %>% as.matrix()
