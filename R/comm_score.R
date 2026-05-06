@@ -1,3 +1,14 @@
+# (1)%>%
+#' @importFrom magrittr %>%
+#' @export
+magrittr::`%>%`
+
+
+# (2):=
+#' @importFrom data.table :=
+#' @export
+data.table::`:=`
+
 rbindlist_n <- function(l, n = 10000, max_chunks = NULL, fill = FALSE, use.names = TRUE, idcol = NULL,  threads = NULL ) {
   
   library(parallel)
