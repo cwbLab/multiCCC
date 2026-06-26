@@ -92,16 +92,24 @@ wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.8 , mem.max =
     
     #2
     sample_size <- min(5, length(X))
+    set.seed(100)
     sample_idx <- sample(seq_along(X), sample_size)
     
     #
-    mean_used <- base::lapply(sample_idx,function(temp_idx){
-      temp <- abs(  peakRAM::peakRAM({ test_results <- base::lapply(X[temp_idx], FUN, ...) } )[['Peak_RAM_Used_MiB']]  )
+    mean_used <- c()
+    for(  temp_idx  in  sample_idx  ){
+      temp <- bench::bench_memory(
+        suppressMessages( suppressWarnings( capture.output(
+          test_results <- base::lapply(X = X[temp_idx], FUN = FUN, ...)
+        ) ) )
+      )[['mem_alloc']]
+      temp <- max( as.numeric( temp ) / 1024^2 , 0.1 )
+      
+      mean_used <- c( mean_used , temp )
     }
-    )
     
-    #
-    avg_mem_per_task_mb <- max( median( as.numeric( mean_used ) ), 1) * 1.2
+    #minimum,0.5 MB
+    avg_mem_per_task_mb <- max( median( as.numeric( mean_used ) ), 0.4167 ) * 1.2
     
     #3
     get_total_mem_gb <- function(){
@@ -181,6 +189,46 @@ wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.8 , mem.max =
   return(final_results)
 }
 
+w.pblapply <- function( X , FUN, ... , pb = T , time = F , unlist = F ){
+  
+  #
+  start_time <- Sys.time()
+  if( time ){ message( w.log_time_title() , w.log_text_coloured( s.c = 's' ) , 'Tasks: ' , length(X) ,'.'  )  }
+  
+  #
+  result <- NULL
+  if( pb ){
+    #
+    total_length <- length(X) + 1
+    mypb <- pbmcapply::progressBar(min = 1 , max = total_length , initial = 1, style = "ETA"  )
+    
+    result <- base::list()
+    for (  i in  seq(  2 , total_length , 1 )  ){
+      result <- c( result , base::lapply(  X = X[ i - 1 ] , FUN = FUN , ... ) )
+      utils::setTxtProgressBar(mypb, i )
+    }
+    base::close(mypb)
+    #
+    names(result) <- names(X)
+    
+  }else{
+    result  <- base::lapply(  X = X , FUN = FUN , ... )
+    names(result) <- names(X)
+  }
+  #
+  end_time <- Sys.time()
+  if( time ){ message( w.log_time_title() ,
+                       w.log_text_coloured( s.c = 'c' ) ,
+                       w.log_time_runtime(  t.minor = start_time ,t.major = end_time  ))
+  }
+  #
+  if( unlist ){
+    return(  base::unlist( result  )   )
+  }else{
+    return(result)
+  }
+}
+
 
 #
 get_database <- function( species  , source ){
@@ -238,7 +286,7 @@ cci_lrscore <- function( exp , meta.data , sample , celltype , LR.ref, lr.databa
   all_group_split <- split(all_group, by = "st2")
   raw_group <- rbindlist(  all_group_split )
   #
-  score <- pbmcapply::pbmclapply( 1:length( all_group_split ) , function( number  ){
+  score <- lapply( 1:length( all_group_split ) , function( number  ){
     all_group <- all_group_split[[ number ]]
     score <- wb.smc( 1:nrow(all_group),function(x){
       #
@@ -265,7 +313,7 @@ cci_lrscore <- function( exp , meta.data , sample , celltype , LR.ref, lr.databa
     score <- data.table::set( score, j = names(score), value = lapply(score, as.numeric) )
     score <- setDF( score )
     return(score)
-  } ,mc.cores = 1) %>% rbindlist(use.names = F) %>% setDF()
+  }) %>% rbindlist(use.names = F) %>% setDF()
   #
   rownames(score) <- raw_group$CCC.ID
   colnames(score) <- samples
@@ -327,7 +375,7 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
   all_group$lr <- paste( all_group$ligand, all_group$receptor , sep = '_'  )
   all_group$CCC.ID <- paste( all_group$st , all_group$lr , sep = '.' )
   #
-  LRscore <- pbmcapply::pbmclapply(samples, function(x){
+  LRscore <- lapply(samples, function(x){
     sce_sub <- sce[, meta.data[[sample]] == x ]
     
     
@@ -612,7 +660,7 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
     ############
     return( myres )
     
-  } , mc.cores = 1 ) %>%  transpose() %>% as.data.table() %>%  transpose() %>%  setDF()
+  } ) %>%  transpose() %>% as.data.table() %>%  transpose() %>%  setDF()
   
   #########################################################
   colnames(LRscore) <- samples
@@ -727,7 +775,7 @@ scoreLR <- function( exp,meta.data,sample,celltype,
       
     }) %>% rbindlist()
     
-  }, mc.cores = threads ) %>% rbindlist_n( n = 2000 , use.names = F )
+  }, mc.cores = threads , pb = T ) %>% rbindlist_n( n = 2000 , use.names = F )
   colnames( detect_exp ) <- c( 'sample' , 'celltype', 'gene', 'prob' ,'reserved'   )
   #
   myfilter <- detect_exp[ which(detect_exp$reserved  == 'Y') , ]
@@ -753,10 +801,8 @@ scoreLR <- function( exp,meta.data,sample,celltype,
   if( length( samples )  >= 3  ){
     ccc.res.split <- split_vec( 1:length( samples ) , chunk = 3, min_last = 2 )
     #
-    ccc.res.split.result <- lapply( 1:length(ccc.res.split), function(chunk){
+    ccc.res.split.result <- w.pblapply( 1:length(ccc.res.split), function(chunk){
       #
-      message( '  Subtask: ', chunk ,'/', length(ccc.res.split) )
-      
       s_samples <- samples[ ccc.res.split[[chunk]] ]
       #
       smeta <- meta.data[ meta.data[[sample]] %in% s_samples, ]
@@ -828,7 +874,6 @@ scoreLR <- function( exp,meta.data,sample,celltype,
                                 min.cell = 0 , min.prob = 0 , threads = threads )
     }
   }
-  
   
   ###output
   run.end = Sys.time()

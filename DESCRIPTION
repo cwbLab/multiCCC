@@ -1,34 +1,19 @@
 Package: multiCCC
-Title: What the Package Does (One Line, Title Case)
-Version: 1.26.3
+Title: Evaluate perturbations in cell–cell communication networks
+Version: 1.26.6
 Authors@R: 
-    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))
+    person("Wenbo", "Chen", , "cwblab@outlook.com", role = c("aut", "cre"))
 Description: Based on scRNA-seq technology, test the relationship between cell–cell communication (CCC) and phenotypes across multiple contexts.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
-Depends: 
-    R (>= 3.5)
+Depends: R (>= 3.5)
 LazyData: true
-Imports:
-	aplot,
-	data.table,
-    dplyr,
-	ggplot2,
-	hms,
-	lmerTest,
-	pbmcapply,
-	parallel,
-	peakRAM,
-	plotthis,
-	presto,
-    progressr,
-	ps,
-	reshape2,
-	Seurat,
-	SingleCellExperiment,
-	sjPlot,
-	stringr
-
-	
+Imports: aplot, bench, data.table, dplyr, ggplot2, hms, lmerTest,
+        pbmcapply, parallel, plotthis, presto, progressr, ps, reshape2,
+        Seurat, SingleCellExperiment, sjPlot, stringr
+NeedsCompilation: no
+Packaged: 2026-06-26 04:37:33 UTC; Administrator
+Author: Wenbo Chen [aut, cre]
+Maintainer: Wenbo Chen <cwblab@outlook.com>
