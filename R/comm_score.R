@@ -183,6 +183,16 @@ wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.8 , mem.max =
       )
       
     }
+  }else{
+    threads <- max(1, as.integer( threads ) )
+    threads <- min( threads  , length(X) )
+    #
+    if(pb){
+      final_results <- pbmcapply::pbmclapply( X = X, FUN = FUN, ..., mc.cores = threads  )
+    }else{
+      final_results <- parallel::mclapply( X = X, FUN = FUN, ..., mc.cores = threads  )
+    }
+    #
   }
   
   #
