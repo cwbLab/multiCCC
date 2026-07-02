@@ -126,57 +126,63 @@ wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.8 , mem.max =
     max_safe_cores <- floor((limit_mem_gb / (avg_mem_per_task_mb / 1024)) * 0.9)
     max_safe_cores <- max(1, max_safe_cores)
     
-    chunk_size <- floor( max(2, min(length(X), max_safe_cores ) ) * 0.9 )
     
-    myratio <- chunk_size / target_threads
-    if( avg_mem_per_task_mb >= 100 & myratio < 100 ){
-      target_threads = floor( max( target_threads / 3,  target_threads / 100   ) )
-    }
-    
-    indices <- split(seq_along(X), ceiling(seq_along(X) / chunk_size))
-    
-    #5
-    final_results <- vector("list", length(X))
-    total_chunks <- length(indices)
-    
-    current_cores <- min( target_threads, max_safe_cores  )
-    if( time ){ message( wb.log_time_title() , wb.log_time_start_end() , 'Threads used: ', current_cores , '. Tasks total: ' , length(X) ,'.'  )  }
-    #
-    progressr::with_progress({
-      a <- 1:total_chunks
-      mypb<- progressr::progressor(steps = length(a))
+    if ( max_safe_cores*0.9 > target_threads  ){
       
-      for (i in seq_along(indices)){
-        #
-        curr_idx <- indices[[i]]
-        #
-        batch_res <- parallel::mclapply(
-          X[curr_idx],
-          FUN,
-          ...,
-          mc.cores = current_cores
-        )
-        final_results[curr_idx] <- batch_res
-        #
-        mypb()
+      target_threads <- min( target_threads  , length(X)  )
+      #
+      if(pb){
+        final_results <- pbmcapply::pbmclapply( X = X, FUN = FUN, ..., mc.cores = target_threads )
+      }else{
+        final_results <- parallel::mclapply( X = X, FUN = FUN, ..., mc.cores = target_threads )
+      }
+      #
+    }else{
+      
+      chunk_size <- floor( max(2, min(length(X), max_safe_cores ) ) * 0.9 )
+      
+      myratio <- chunk_size / target_threads
+      if( avg_mem_per_task_mb >= 100 & myratio < 100 ){
+        target_threads = floor( max( target_threads / 3,  target_threads / 100   ) )
       }
       
-    },
-    handlers = progressr::handlers(  progressr::handler_progress(
-      format = "[:bar] :percent | Elapsed: :elapsed | ETA: :eta",
-      clear = FALSE
-    )),
-    enable = pb
-    )
-    #
-  }else{
-    #
-    if(pb){
-      final_results <- pbmcapply::pbmclapply( X = X, FUN = FUN, ...,mc.cores = as.integer(threads)  )
-    }else{
-      final_results <- parallel::mclapply( X = X, FUN = FUN, ...,mc.cores = as.integer(threads)  )
+      indices <- split(seq_along(X), ceiling(seq_along(X) / chunk_size))
+      
+      #5
+      final_results <- vector("list", length(X))
+      total_chunks <- length(indices)
+      
+      current_cores <- min( target_threads, max_safe_cores  )
+
+      #
+      progressr::with_progress({
+        a <- 1:total_chunks
+        mypb<- progressr::progressor(steps = length(a))
+        
+        for (i in seq_along(indices)){
+          #
+          curr_idx <- indices[[i]]
+          #
+          batch_res <- parallel::mclapply(
+            X[curr_idx],
+            FUN,
+            ...,
+            mc.cores = min( current_cores  , length(  X[curr_idx]   )  )
+          )
+          final_results[curr_idx] <- batch_res
+          #
+          mypb()
+        }
+        
+      },
+      handlers = progressr::handlers(  progressr::handler_progress(
+        format = "[:bar] :percent | Elapsed: :elapsed | ETA: :eta",
+        clear = FALSE
+      )),
+      enable = pb
+      )
+      
     }
-    #
   }
   
   #
