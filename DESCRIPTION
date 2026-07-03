@@ -1,6 +1,6 @@
 Package: multiCCC
 Title: Evaluate perturbations in cell–cell communication networks
-Version: 1.26.07
+Version: 1.26.7
 Authors@R: 
     person("Wenbo", "Chen", , "cwblab@outlook.com", role = c("aut", "cre"))
 Description: Based on scRNA-seq technology, test the relationship between cell–cell communication (CCC) and phenotypes across multiple contexts.
