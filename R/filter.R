@@ -1,5 +1,7 @@
 filter_ccc <- function( ccc.res , ligand.method = NULL, receptor.method = NULL ){
   #
+  suppressMessages(  library( SingleCellExperiment )   )
+  #
   methods <- names( ccc.res )
   ccc.res <- lapply(methods, function( method.name ){
     message(  '[ ', format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' ] ' , method.name    )

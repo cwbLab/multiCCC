@@ -1,8 +1,9 @@
 
 ###binary
-get_binary <- function( data , group , g1 , g2, permutation , p.adjust.method , threads ){
+get_binary <- function( data , group , g1 , g2,  test, permutation , p.adjust.method , threads ){
   #
-  message( '[ ', format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' ] ','Performing permutation test.'  )
+  message( '[ ', format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' ] ',
+           'Performing ', test ,' test.'  )
   
   #
   new.meta <- data$parameters$meta.data[  , c(  data$parameters$sample  , group   )  ]
@@ -15,48 +16,113 @@ get_binary <- function( data , group , g1 , g2, permutation , p.adjust.method , 
   raw.score <- raw.score[  , match(  groups$sample , colnames( raw.score  )    ) ]
   
   #
-  res <- wb.smc( 1:nrow( raw.score ) , function(x){
-    v = raw.score[x,] %>% unlist() %>% as.numeric()
-    #
-    op = c( g1.mean = 0 , g2.mean  = 0 , log2fc = NA , p = NA )
-    if( max(v) != 0 ){
+  if( test == 'permutation'  ){
+    res <- wb.smc( 1:nrow( raw.score ) , function(x){
+      v = raw.score[x,] %>% unlist() %>% as.numeric()
       #
-      g1.index <- which( groups$group  == g1 )
-      g2.index <- which( groups$group  == g2 )
-      #
-      g1.mean = mean(  v[  g1.index  ] )
-      g2.mean = mean(  v[  g2.index  ] )
-      log2fc <- log2( g1.mean / g2.mean  )
-      #
-      ms <- g1.mean - g2.mean
-      #
-      g1.length = length( which( groups$group  == g1 ) )
-      g2.length = length( which( groups$group  == g2 ) )
-      
-      #
-      ps <- lapply( 1:permutation , function(num){
-        set.seed(num)
-        perm.data <- sample( v )
-        mean(  perm.data[  g1.index  ]  ) - mean( perm.data[  g2.index  ] )
+      op = c( g1.mean = 0 , g2.mean  = 0 , log2fc = NA , p = NA )
+      if( max(v) != 0 ){
+        #
+        g1.index <- which( groups$group  == g1 )
+        g2.index <- which( groups$group  == g2 )
+        #
+        g1.mean = mean(  v[  g1.index  ] )
+        g2.mean = mean(  v[  g2.index  ] )
+        log2fc <- log2( g1.mean / g2.mean  )
+        #
+        ms <- g1.mean - g2.mean
+        #
+        g1.length = length( which( groups$group  == g1 ) )
+        g2.length = length( which( groups$group  == g2 ) )
         
-      }) %>% as.numeric()
+        #
+        ps <- lapply( 1:permutation , function(num){
+          set.seed(num)
+          perm.data <- sample( v )
+          mean(  perm.data[  g1.index  ]  ) - mean( perm.data[  g2.index  ] )
+          
+        }) %>% as.numeric()
+        #
+        pvalue <- (length(which(abs(ps) > abs(ms))) + 1) / (  permutation + 1 )
+        #
+        op = c( g1.mean = g1.mean , g2.mean  = g2.mean , log2fc = log2fc , p = pvalue )
+      }
       #
-      pvalue <- (length(which(abs(ps) > abs(ms))) + 1) / (  permutation + 1 )
+      if( is.na(op[['p']]) ){ return(NULL) }else{ return( op ) }
+      
+    } ,mc.cores = threads ) 
+    #
+    null_res <- vapply(res, is.null, logical(1))
+    res <- res[  !null_res  ] %>% transpose() %>% as.data.table() %>% setDF()
+    
+    colnames( res ) <- c(  paste( 'mean',c(g1, g2), sep='.' ) , 'log2FC' , 'p'  )
+    res <- res[ !is.na(res$p) ,  ]
+    if( nrow(res) < 1 ){ stop( simpleError(  'All input values are zero. No valid data are available for further analysis. Please check the previous analysis step.'  ) )   }
+    rownames(res ) <- rownames( raw.score )[  !null_res  ]
+    
+  }else{
+    
+    res <- wb.smc( 1:nrow( raw.score ) , function(x){
+      v = raw.score[x,] %>% unlist() %>% as.numeric()
       #
-      op = c( g1.mean = g1.mean , g2.mean  = g2.mean , log2fc = log2fc , p = pvalue )
+      op = c( g1.mean = 0 , g2.mean  = 0 , log2fc = NA , p = NA )
+      if( max(v) != 0 ){
+        #
+        g1.index <- which( groups$group  == g1 )
+        g2.index <- which( groups$group  == g2 )
+        #
+        g1.mean = mean(  v[  g1.index  ] )
+        g2.mean = mean(  v[  g2.index  ] )
+        log2fc <- log2( g1.mean / g2.mean  )
+        #
+        ms <- g1.mean - g2.mean
+        #
+        g1.length = length( which( groups$group  == g1 ) )
+        g2.length = length( which( groups$group  == g2 ) )
+        
+        #
+        pvalue <- 1
+        #
+        op = c( g1.mean = g1.mean , g2.mean  = g2.mean , log2fc = log2fc , p = pvalue )
+      }
+      #
+      if( is.na(op[['p']]) ){ return(NULL) }else{ return( op ) }
+      
+    } ,mc.cores = threads ) 
+    #
+    null_res <- vapply(res, is.null, logical(1))
+    res <- res[  !null_res  ] %>% transpose() %>% as.data.table() %>% setDF()
+    
+    #
+    colnames( res ) <- c(  paste( 'mean',c(g1, g2), sep='.' ) , 'log2FC' , 'p'  )
+    res <- res[ !is.na(res$p) ,  ]
+    if( nrow(res) < 1 ){ stop( simpleError(  'All input values are zero. No valid data are available for further analysis. Please check the previous analysis step.'  ) )   }
+    rownames(res ) <- rownames( raw.score )[  !null_res  ]
+    
+    #
+    temp.raw.score <- raw.score[  rownames(raw.score)  %in% rownames(res)  ,  ]
+    temp.raw.score <- temp.raw.score[   match( rownames( res) , rownames(temp.raw.score)   ) ,   ]
+    data1 = temp.raw.score[  , colnames(temp.raw.score) %in% groups$sample[ groups$group == g1  ]  ]
+    data2 = temp.raw.score[  , colnames(temp.raw.score) %in% groups$sample[ groups$group == g2  ]  ]
+    
+    #
+    if( test == 't' ){
+      p.new = matrixTests::row_t_equalvar( x = data1 ,  y = data2    )
+      p.new = p.new[  match( rownames(res) , rownames( p.new  )  )   ,  ]
+      res$p <- p.new$pvalue
+      
+    }else{
+      
+      p.new = matrixTests::row_wilcoxon_twosample( x = data1 ,  y = data2    )
+      p.new = p.new[  match( rownames(res) , rownames( p.new  )  )   ,  ]
+      res$p <- p.new$pvalue
+      
     }
     #
-    if( is.na(op[['p']]) ){ return(NULL) }else{ return( op ) }
     
-  } ,mc.cores = threads ) 
-  #
-  null_res <- vapply(res, is.null, logical(1))
-  res <- res[  !null_res  ] %>% transpose() %>% as.data.table() %>% setDF()
+  }
   
-  colnames( res ) <- c(  paste( 'mean',c(g1, g2), sep='.' ) , 'log2FC' , 'p'  )
-  res <- res[ !is.na(res$p) ,  ]
-  if( nrow(res) < 1 ){ stop( simpleError(  'All input values are zero. No valid data are available for further analysis. Please check the previous analysis step.'  ) )   }
-  rownames(res ) <- rownames( raw.score )[  !null_res  ]
+  #padj
   res$p.adj <- p.adjust(  res$p, method = p.adjust.method )
   res <- cbind(  CCC.ID = rownames(res)    , res  )
   res <- cbind( res , data$CCC.info[ !null_res , c( "source","target","ligand","receptor","st","lr" )  ]  )
@@ -75,11 +141,12 @@ get_binary <- function( data , group , g1 , g2, permutation , p.adjust.method , 
     meta.data = groups,
     result = res ,
     type = 'binary',
-    parameters = list( data = data , group = group , g1  = g1 , g2 = g2,
+    parameters = list( data = data , group = group , g1  = g1 , g2 = g2, test = test, 
                        permutation  = permutation , p.adjust.method = p.adjust.method ,
                        threads = threads  )
   ) )
 }
+
 
 
 ###anova
@@ -325,7 +392,16 @@ get_time <- function(  data , time , replicate , covariance , p.adjust.method , 
 #' Detect differential CCC (cell–cell communication) events.
 #'
 #' @param data The object returned by the scoreLR function.
-#' @param binary.params A list object with the format list(group = '', g1 = '', g2 = '') or list(group = '', g1 = '', g2 = '', permutation = 1000 ), where group represents a column name in meta.data, and the fold change (FC) in the results is calculated as g1/g2.
+#' @param binary.params 
+#' A list defining the comparison. It should contain at least `group`, `g1`, and `g2`, where `group` specifies a column in `meta.data`, and the fold change (FC) is calculated as `g1 / g2`.
+#' The optional element `test` specifies the statistical test:
+#' 
+#' \itemize{
+#'   \item Wilcoxon rank-sum test (default): list(group = '', g1 = '', g2 = '', test = 'wilcoxon' )
+#'   \item Student's t-test: list(group = '', g1 = '', g2 = '', test = 't' )
+#'   \item Permutation test: list(group = '', g1 = '', g2 = '', test = 'permutation' )
+#' }
+#' 
 #' @param anova.column A column name in meta.data based on which an ANOVA test is performed.
 #' @param glm.column A column name in meta.data used to fit a GLM model.
 #' @param time.course.params Provide a list object with the format list(time = '', replicate = ''), where both time and replicate are column names in meta.data of numeric type. time represents the time point, and replicate represents the biological replicate.
@@ -388,10 +464,12 @@ multiCCC <- function( data , binary.params = NULL ,  anova.column = NULL,
   
   ###
   if( !is.null( binary.params ) ){
+    test = 'wilcoxon'
     permutation  = 1000
     if( !is.null( binary.params$permutation ) ){  permutation  =  as.integer(binary.params$permutation) }
+    if( !is.null( binary.params$test )  ){ test = as.character(  binary.params$test    )   }
     oplist[[ 'binary.res' ]] <- get_binary( data = data , group = binary.params$group ,
-                                            g1 = binary.params$g1, g2 = binary.params$g2,
+                                            g1 = binary.params$g1, g2 = binary.params$g2, test = test , 
                                             permutation  = permutation  , p.adjust.method = p.adjust.method , threads = threads )
   }
   if( !is.null( anova.column ) ){

@@ -18,7 +18,14 @@ multiCCC(
 \arguments{
 \item{data}{The object returned by the scoreLR function.}
 
-\item{binary.params}{A list object with the format list(group = '', g1 = '', g2 = ''), where group represents a column name in meta.data, and the fold change (FC) in the results is calculated as g1/g2.}
+\item{binary.params}{A list defining the comparison. It should contain at least \code{group}, \code{g1}, and \code{g2}, where \code{group} specifies a column in \code{meta.data}, and the fold change (FC) is calculated as \code{g1 / g2}.
+The optional element \code{test} specifies the statistical test:
+
+\itemize{
+\item Wilcoxon rank-sum test (default): list(group = '', g1 = '', g2 = '', test = 'wilcoxon' )
+\item Student's t-test: list(group = '', g1 = '', g2 = '', test = 't' )
+\item Permutation test: list(group = '', g1 = '', g2 = '', test = 'permutation' )
+}}
 
 \item{anova.column}{A column name in meta.data based on which an ANOVA test is performed.}
 
