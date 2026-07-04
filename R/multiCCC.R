@@ -419,7 +419,7 @@ multiCCC <- function( data , binary.params = NULL ,  anova.column = NULL,
   
   ###
   if( !is.null( binary.params ) ){
-    test = 'wilcoxon'
+    test = 't'
     permutation  = 1000
     if( !is.null( binary.params$permutation ) ){  permutation  =  as.integer(binary.params$permutation) }
     if( !is.null( binary.params$test )  ){ test = as.character(  binary.params$test    )   }
