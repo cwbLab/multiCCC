@@ -51,7 +51,7 @@ get_binary <- function( data , group , g1 , g2,  test, permutation , p.adjust.me
       return(a)
     }, mc.cores = threads ) %>% data.frame() %>% as.matrix()
     
-    pvalues <- rowMeans(abs(perm_stats) >= abs(obs_stat))
+    pvalues <- rowMeans( abs(perm_stats) >= abs(obs_stat) )
     res$p <- as.numeric( pvalues  )
     #
     
@@ -85,10 +85,10 @@ get_binary <- function( data , group , g1 , g2,  test, permutation , p.adjust.me
   colnames( groups ) <- c(  data$parameters$sample  , group   )
   
   ######LRwFC
-  nonzero_means <- c( res[ which(res[,2]>0 ) ,2 ] , res[ which(res[,3]> 0 ) ,3 ] ) %>% unlist() %>% as.numeric()
+  nonzero_means <- c( res[ which(res[,2]>0 ) ,2 ] , res[ which(res[,3]> 0 ) ,3 ] ) %>% unlist() %>% as.numeric() %>% abs()
   pc <- mean(nonzero_means) * ( length( nonzero_means ) / (nrow(res) * 2 ) )
-  log2FC.smoothed <- log2( (as.numeric(res[,2]) + pc) / (as.numeric(res[,3]) + pc) )
-  max.mean <- pmax(as.numeric(res[,2]), as.numeric(res[,3]) )
+  log2FC.smoothed <- log2( (abs(res[,2]) + pc) / (abs(res[,3]) + pc) )
+  max.mean <- pmax(abs(res[,2]), abs(res[,3]) )
   res$LRwFC <- log2FC.smoothed * max.mean / max( nonzero_means )
   
   #
