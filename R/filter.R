@@ -1,6 +1,7 @@
 filter_ccc <- function( ccc.res , ligand.method = NULL, receptor.method = NULL ){
   #
   suppressMessages(  library( SingleCellExperiment )   )
+  suppressMessages(  library( data.table )   )
   #
   methods <- names( ccc.res )
   ccc.res <- lapply(methods, function( method.name ){
@@ -22,7 +23,31 @@ filter_ccc <- function( ccc.res , ligand.method = NULL, receptor.method = NULL )
       message(  "'gene.expression' results already exist and will be used directly for filtering."  )
       marker_res <- x[['gene.expression']]$markers
     }else{
+      #
+      expr <- SingleCellExperiment::logcounts(sce)
+      ct <- sce$celltype
+      sum.expr <- t(rowsum(t(expr), group = ct))
+      n.cell <- table(ct) %>% as.data.frame() 
+      
       marker_res <- presto::wilcoxauc(sce, group_by = "celltype", assay = "logcounts" )
+      #
+      marker_res$name  <- paste(marker_res$feature , marker_res$group , sep  = '...'   )
+      temp.d <- lapply(colnames(sum.expr), function(n){
+        #
+        dd <- data.table(  mean1 = sum.expr[ , colnames( sum.expr ) == n ] / n.cell$Freq[ n.cell$ct == n  ] ,
+                           mean2 = rowSums( sum.expr[ ,  colnames( sum.expr ) != n ]  ) / (  ncol( expr )  -   n.cell$Freq[ n.cell$ct == n  ]    )
+        )
+        dd$fc <-  log2( dd$mean1 / dd$mean2  )
+        dd$gene <- rownames( sum.expr  )
+        dd$cell = n
+        dd$name = paste(dd$gene , dd$cell , sep  = '...'   )
+        return(dd)
+        #
+      }) %>% rbindlist()
+      temp.d <- temp.d[  match(  marker_res$name , temp.d$name  )     ,    ]
+      marker_res$logFC <- temp.d$fc
+      marker_res$name <- NULL
+      
       x[['gene.expression']] <- list( markers = marker_res , ligand.filter = ligand.method ,
                                       receptor.filter = receptor.method, filtered.ligand = NULL,
                                       filtered.receptor = NULL
