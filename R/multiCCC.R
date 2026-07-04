@@ -15,117 +15,72 @@ get_binary <- function( data , group , g1 , g2,  test, permutation , p.adjust.me
   raw.score <- data$LRscore
   raw.score <- raw.score[  , match(  groups$sample , colnames( raw.score  )    ) ]
   
-  #
+  #mean,FC
+  data1 = raw.score[  , colnames(raw.score) %in% groups$sample[ groups$group == g1  ]  ]
+  data2 = raw.score[  , colnames(raw.score) %in% groups$sample[ groups$group == g2  ]  ]
+  
+  res = suppressWarnings( matrixTests::row_t_equalvar (x = data1 ,  y = data2    ) )
+  res <- data.frame( g1.mean = res$mean.x , g2.mean = res$mean.y , row.names = rownames(res) )
+  res$log2fc <- log2(  res$g1.mean / res$g2.mean )
+  res$p <- 1
+  
+  colnames( res ) <- c(  paste( 'mean',c(g1, g2), sep='.' ) , 'log2FC' , 'p'  )
+  res <- res[ res$log2FC != 'NaN' , ]
+  if( nrow(res) < 1 ){ stop( simpleError(  'All input values are zero. No valid data are available for further analysis. Please check the previous analysis step.'  ) )   }
+  res$log2FC <- as.numeric( res$log2FC )
+  
+  temp.raw.score <- raw.score[  rownames(raw.score)  %in% rownames(res)  ,  ]
+  temp.raw.score <- temp.raw.score[   match( rownames( res) , rownames(temp.raw.score)   ) , groups$sample  ]
+  
+  #permutation, U, T
   if( test == 'permutation'  ){
-    res <- wb.smc( 1:nrow( raw.score ) , function(x){
-      v = raw.score[x,] %>% unlist() %>% as.numeric()
-      #
-      op = c( g1.mean = 0 , g2.mean  = 0 , log2fc = NA , p = NA )
-      if( max(v) != 0 ){
-        #
-        g1.index <- which( groups$group  == g1 )
-        g2.index <- which( groups$group  == g2 )
-        #
-        g1.mean = mean(  v[  g1.index  ] )
-        g2.mean = mean(  v[  g2.index  ] )
-        log2fc <- log2( g1.mean / g2.mean  )
-        #
-        ms <- g1.mean - g2.mean
-        #
-        g1.length = length( which( groups$group  == g1 ) )
-        g2.length = length( which( groups$group  == g2 ) )
-        
-        #
-        ps <- lapply( 1:permutation , function(num){
-          set.seed(num)
-          perm.data <- sample( v )
-          mean(  perm.data[  g1.index  ]  ) - mean( perm.data[  g2.index  ] )
-          
-        }) %>% as.numeric()
-        #
-        pvalue <- (length(which(abs(ps) > abs(ms))) + 1) / (  permutation + 1 )
-        #
-        op = c( g1.mean = g1.mean , g2.mean  = g2.mean , log2fc = log2fc , p = pvalue )
-      }
-      #
-      if( is.na(op[['p']]) ){ return(NULL) }else{ return( op ) }
-      
-    } ,mc.cores = threads ) 
-    #
-    null_res <- vapply(res, is.null, logical(1))
-    res <- res[  !null_res  ] %>% transpose() %>% as.data.table() %>% setDF()
+    idx1 <- which( groups$group  == g1 )
+    idx2 <- which( groups$group  == g2 )
+    n1   <- length(idx1)
+    n2   <- length(idx2)
+    all_idx <- c(idx1, idx2)
     
-    colnames( res ) <- c(  paste( 'mean',c(g1, g2), sep='.' ) , 'log2FC' , 'p'  )
-    res <- res[ !is.na(res$p) ,  ]
-    if( nrow(res) < 1 ){ stop( simpleError(  'All input values are zero. No valid data are available for further analysis. Please check the previous analysis step.'  ) )   }
-    rownames(res ) <- rownames( raw.score )[  !null_res  ]
+    # 
+    obs_stat <- rowMeans(temp.raw.score[, idx1, drop = FALSE]) - rowMeans(temp.raw.score[, idx2, drop = FALSE])
+    
+    #
+    perm_stats <- wb.smc( 1:permutation,function(x) {
+      set.seed(x)
+      shuffled <- sample(all_idx)
+      a <- rowMeans(temp.raw.score[, shuffled[seq_len(n1)], drop = FALSE]) - rowMeans(temp.raw.score[, shuffled[(n1 + 1):(n1 + n2)], drop = FALSE])
+      return(a)
+    }, mc.cores = threads ) %>% data.frame() %>% as.matrix()
+    
+    pvalues <- rowMeans(abs(perm_stats) >= abs(obs_stat))
+    res$p <- as.numeric( pvalues  )
+    #
     
   }else{
-    
-    res <- wb.smc( 1:nrow( raw.score ) , function(x){
-      v = raw.score[x,] %>% unlist() %>% as.numeric()
-      #
-      op = c( g1.mean = 0 , g2.mean  = 0 , log2fc = NA , p = NA )
-      if( max(v) != 0 ){
-        #
-        g1.index <- which( groups$group  == g1 )
-        g2.index <- which( groups$group  == g2 )
-        #
-        g1.mean = mean(  v[  g1.index  ] )
-        g2.mean = mean(  v[  g2.index  ] )
-        log2fc <- log2( g1.mean / g2.mean  )
-        #
-        ms <- g1.mean - g2.mean
-        #
-        g1.length = length( which( groups$group  == g1 ) )
-        g2.length = length( which( groups$group  == g2 ) )
-        
-        #
-        pvalue <- 1
-        #
-        op = c( g1.mean = g1.mean , g2.mean  = g2.mean , log2fc = log2fc , p = pvalue )
-      }
-      #
-      if( is.na(op[['p']]) ){ return(NULL) }else{ return( op ) }
-      
-    } ,mc.cores = threads ) 
     #
-    null_res <- vapply(res, is.null, logical(1))
-    res <- res[  !null_res  ] %>% transpose() %>% as.data.table() %>% setDF()
-    
-    #
-    colnames( res ) <- c(  paste( 'mean',c(g1, g2), sep='.' ) , 'log2FC' , 'p'  )
-    res <- res[ !is.na(res$p) ,  ]
-    if( nrow(res) < 1 ){ stop( simpleError(  'All input values are zero. No valid data are available for further analysis. Please check the previous analysis step.'  ) )   }
-    rownames(res ) <- rownames( raw.score )[  !null_res  ]
-    
-    #
-    temp.raw.score <- raw.score[  rownames(raw.score)  %in% rownames(res)  ,  ]
-    temp.raw.score <- temp.raw.score[   match( rownames( res) , rownames(temp.raw.score)   ) ,   ]
     data1 = temp.raw.score[  , colnames(temp.raw.score) %in% groups$sample[ groups$group == g1  ]  ]
     data2 = temp.raw.score[  , colnames(temp.raw.score) %in% groups$sample[ groups$group == g2  ]  ]
     
     #
     if( test == 't' ){
-      p.new = matrixTests::row_t_equalvar( x = data1 ,  y = data2    )
+      p.new = suppressWarnings( matrixTests::row_t_equalvar( x = data1 ,  y = data2    ) )
       p.new = p.new[  match( rownames(res) , rownames( p.new  )  )   ,  ]
       res$p <- p.new$pvalue
       
     }else{
-      
-      p.new = matrixTests::row_wilcoxon_twosample( x = data1 ,  y = data2    )
+      p.new = suppressWarnings( matrixTests::row_wilcoxon_twosample( x = data1 ,  y = data2    ) )
       p.new = p.new[  match( rownames(res) , rownames( p.new  )  )   ,  ]
       res$p <- p.new$pvalue
-      
     }
     #
-    
   }
   
   #padj
+  m.info <- data$CCC.info[ data$CCC.info$CCC.ID %in% rownames(res) ,  ]
+  m.info <- m.info[  match( rownames(res), m.info$CCC.ID ),  c( "source","target","ligand","receptor","st","lr" )   ]
+  
   res$p.adj <- p.adjust(  res$p, method = p.adjust.method )
   res <- cbind(  CCC.ID = rownames(res)    , res  )
-  res <- cbind( res , data$CCC.info[ !null_res , c( "source","target","ligand","receptor","st","lr" )  ]  )
+  res <- cbind( res , m.info )
   #
   colnames( groups ) <- c(  data$parameters$sample  , group   )
   
