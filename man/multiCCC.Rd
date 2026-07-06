@@ -22,8 +22,8 @@ multiCCC(
 The optional element \code{test} specifies the statistical test:
 
 \itemize{
-\item Wilcoxon rank-sum test (default): list(group = '', g1 = '', g2 = '', test = 'wilcoxon' )
-\item Student's t-test: list(group = '', g1 = '', g2 = '', test = 't' )
+\item Student's t-test (default): list(group = '', g1 = '', g2 = '', test = 't' )
+\item Wilcoxon rank-sum test: list(group = '', g1 = '', g2 = '', test = 'wilcoxon' )
 \item Permutation test: list(group = '', g1 = '', g2 = '', test = 'permutation' )
 }}
 

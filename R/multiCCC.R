@@ -352,8 +352,8 @@ get_time <- function(  data , time , replicate , covariance , p.adjust.method , 
 #' The optional element `test` specifies the statistical test:
 #' 
 #' \itemize{
-#'   \item Wilcoxon rank-sum test (default): list(group = '', g1 = '', g2 = '', test = 'wilcoxon' )
-#'   \item Student's t-test: list(group = '', g1 = '', g2 = '', test = 't' )
+#'   \item Student's t-test (default): list(group = '', g1 = '', g2 = '', test = 't' )
+#'   \item Wilcoxon rank-sum test: list(group = '', g1 = '', g2 = '', test = 'wilcoxon' )
 #'   \item Permutation test: list(group = '', g1 = '', g2 = '', test = 'permutation' )
 #' }
 #' 
@@ -403,6 +403,11 @@ multiCCC <- function( data , binary.params = NULL ,  anova.column = NULL,
 ){
   
   ###
+  if(  is.null( binary.params ) &  is.null( anova.column ) & is.null( glm.column ) & is.null( time.course.params )  ){
+    stop( simpleError(  '`binary.params`, `anova.column`, `glm.column`, and `time.course.params` cannot all be `NULL`.'  ) )
+  }
+  
+  #
   run.start = Sys.time()
   suppressMessages({
     library(dplyr)
