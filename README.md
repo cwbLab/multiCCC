@@ -1,5 +1,6 @@
 # multiCCC
 `multiCCC` is an R package designed to test the association between cell–cell communication (CCC) and phenotypes across multiple contexts.
+
 ![Screenshot](https://github.com/cwbLab/multiCCC/blob/main/data/pipeline.png)
 
 ## Install
@@ -8,8 +9,10 @@
 ## Quick Start
 `multiCCC` currently supports scRNA-seq data from both human and mouse. 
 Recommended input: 
-1. A library-size-normalized expression matrix in which the total library size is consistent across individual cells, such as CPM or TPM.
-2. A metadata matrix should contain at least three columns: a sample ID column, a cell type column, and a grouping information column. The row names of the metadata matrix should correspond to those of the expression matrix.
+
+ (1) A library-size-normalized expression matrix in which the total library size is consistent across individual cells, such as CPM or TPM.
+ 
+ (2) A metadata matrix should contain at least three columns: a sample ID column, a cell type column, and a grouping information column. The row names of the metadata matrix should correspond to those of the expression matrix.
 
 ### 1. Evaluate cell–cell communication scores (LRscore)
 	
