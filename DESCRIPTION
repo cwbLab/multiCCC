@@ -1,6 +1,6 @@
 Package: multiCCC
-Title: Evaluate perturbations in cell–cell communication networks
-Version: 1.26.7
+Title: Comprehensively evaluate perturbations in cell–cell communication networks
+Version: 1.27.1
 Authors@R: 
     person("Wenbo", "Chen", , "cwblab@outlook.com", role = c("aut", "cre"))
 Description: Based on scRNA-seq technology, test the relationship between cell–cell communication (CCC) and phenotypes across multiple contexts.
@@ -10,8 +10,8 @@ Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
 Depends: R (>= 3.5)
 LazyData: true
-Imports: aplot, bench, data.table, dplyr, ggplot2, hms, lmerTest, matrixTests,
-        pbmcapply, parallel, plotthis, presto, progressr, ps, reshape2,
+Imports: aplot, bench, data.table, dplyr, ggplot2, hms, lmerTest, Matrix, matrixTests, mbkmeans,
+        pbmcapply, parallel, plotthis, presto, progressr, ps, reshape2, RSpectra,
         Seurat, SingleCellExperiment, sjPlot, stringr
 NeedsCompilation: no
 Packaged: 2026-06-26 04:37:33 UTC; Administrator

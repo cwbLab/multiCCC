@@ -9,6 +9,7 @@ get_binary <- function( data , group , g1 , g2,  test, permutation , p.adjust.me
   new.meta <- data$parameters$meta.data[  , c(  data$parameters$sample  , group   )  ]
   colnames(new.meta) <- c( 'sample'  , 'group'  )
   groups <- dplyr::distinct( new.meta , sample , group ,.keep_all = T   ) %>% arrange( sample, group  )
+  groups$sample <- as.character(groups$sample)
   rownames(groups) <- NULL
   
   #
@@ -113,6 +114,7 @@ get_anova <-  function( data , group , p.adjust.method, threads ){
   new.meta <- data$parameters$meta.data[  , c(  data$parameters$sample  , group   )  ]
   colnames(new.meta) <- c( 'sample'  , 'group'  )
   groups <- dplyr::distinct( new.meta , sample , group ,.keep_all = T   ) %>% arrange( sample, group  )
+  groups$sample <- as.character(groups$sample)
   rownames(groups) <- NULL
   gs = unique( groups$group  ) %>% sort()
   

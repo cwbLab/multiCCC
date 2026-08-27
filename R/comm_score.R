@@ -153,7 +153,7 @@ wb.smc <- function(X, FUN, ..., mc.cores = NULL, mem.ratio.max = 0.8 , mem.max =
       total_chunks <- length(indices)
       
       current_cores <- min( target_threads, max_safe_cores  )
-
+      
       #
       progressr::with_progress({
         a <- 1:total_chunks
@@ -686,6 +686,171 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
   
 }
 
+###metacell
+sc.metacell.cluster <- function( object , cluster ,
+                                 assay = NULL , layer = NULL,
+                                 min.cluster = 50 , min.cluster.reserved = T, min.target = 50 , max.target = NULL ){
+  #
+  object@meta.data[[ cluster ]] <- as.character( object@meta.data[[ cluster ]]   )
+  Idents( object ) <- cluster
+  
+  #min.cluster
+  cell_number <- table( object@meta.data[[ cluster ]] ) %>% sort() %>% as.data.frame()
+  cell_number$Var1 <- as.character(  cell_number$Var1  )
+  cell_number <- cell_number[ cell_number$Freq > 1 ,  ]
+  aba_cells <- cell_number$Var1[ cell_number$Freq < min.cluster  ] %>% as.character()
+  cell_number <- cell_number[ ! cell_number$Var1 %in% aba_cells , ]
+  if( nrow( cell_number ) < 1  ){  stop( "No clusters are retained for downstream analysis." )  }
+  
+  #
+  if( length( aba_cells ) != 0  ){  aba_obj <- subset( object , idents = aba_cells   )   }
+  object <- subset( object  , idents = unique( cell_number$Var1 ) )
+
+  if(  nrow(object) < 1000  ){
+    fvf <- rownames(object) %>% as.character()
+  }else{
+    fvf <- Seurat::VariableFeatures( Seurat::FindVariableFeatures(object, nfeatures = 1000 ,  verbose = F) )
+  }
+
+  #
+  GE <- Seurat::GetAssayData(  object =  object , assay = assay , layer = layer  )
+  sv <- RSpectra::svds(  GE[ which( rownames(GE) %in% fvf  )   ,  ] , k = min(  dim( GE )  ,  max( 30 , nrow( cell_number  ) ) ),
+                         opts = list( center = TRUE, scale = TRUE ) )
+  pc <- sv$v %*% diag(sv$d)
+  rownames( pc ) <- colnames(GE)
+  #
+  target_ratio <- min(cell_number$Freq) /  min.target
+  cell_number$target_n <- round( cell_number$Freq / target_ratio )
+  cell_number$target_n[  which( cell_number$target_n < min.target )  ] <- min.target
+  if( !is.null( max.target ) ){   cell_number$target_n[  which( cell_number$target_n > max.target )  ] <- max.target  }
+  
+  mtx_res <- lapply( cell_number$Var1  , function(x){
+    #
+    s.matrix <- GE[ , object@meta.data[[ cluster ]]  == x  ]
+    
+    tdata <- pc[ object@meta.data[[ cluster ]]  == x  , ]
+    tn <- cell_number$target_n[ cell_number$Var1 == x ]
+    
+    cluster_res <- mbkmeans::mbkmeans(
+      x = t(tdata) ,
+      clusters = max( 1 , min( tn , nrow( tdata ) - 2 ) ),
+      batch_size = min(tn, nrow( tdata ) ),
+      max_iters = 100
+    )
+    #
+    id_trans <- data.frame( raw.id = rownames(tdata)  , cell.id  =  cluster_res[["Clusters"]] )
+    groups <- factor( cluster_res[["Clusters"]] , levels = sort(unique(cluster_res[["Clusters"]])  ) )
+    
+    M <- Matrix::sparseMatrix(i = seq_along(groups), j = as.integer(groups), x = 1)
+    sum_expr <- s.matrix %*% M
+    n_cell <- Matrix::colSums(M)
+    metacell <- base::sweep( sum_expr, 2, n_cell, "/"  )
+    
+    rownames(metacell) <- rownames(s.matrix)
+    colnames(metacell) <- paste0( sprintf( "%s.MC." , x ), levels(groups) )
+    #
+    id_trans$cell.id <- paste0( sprintf( "%s.MC." , x ), id_trans$cell.id  )
+    return(  list( meta = metacell , trans = id_trans  ) )
+  } )
+  names( mtx_res ) <- as.character(cell_number$Var1)
+  #
+  id_trans <- lapply(mtx_res, function(x) x$trans  ) %>% bind_rows() 
+  mtx_res <- lapply( mtx_res , function(x) x$meta  )
+  names( mtx_res ) <- as.character(cell_number$Var1)
+  #
+  meta.data <- lapply(names(mtx_res), function(x){
+    return( data.frame( cell.id = colnames(  mtx_res[[x]] )  , cluster = x )   )
+  }) %>% bind_rows()
+  exp <- do.call( base::cbind, mtx_res )
+  
+  ######
+  exp <- Matrix::Matrix( exp , sparse = TRUE )
+  meta.data <- base::data.frame( meta.data  )
+  
+  if( length( aba_cells ) != 0 &  min.cluster.reserved  ){
+    #
+    aba_exp <-  Seurat::GetAssayData(  object = aba_obj , assay = assay , layer = layer  )
+    aba_meta <- data.frame( cell.id = colnames(aba_exp)  , cluster = as.character(  Idents( aba_obj ) ) )
+    aba_trans <- data.frame(  raw.id =  aba_meta$cell.id   , cell.id  = aba_meta$cell.id  )
+    #
+    exp <- Matrix::cbind2( exp , aba_exp )
+    meta.data <- base::rbind( meta.data , aba_meta )
+    id_trans <- base::rbind( id_trans , aba_trans )
+    #
+  }
+  #
+  meta.data <- meta.data[ match( colnames(exp) , meta.data$cell.id ) , ]
+  id_trans <- id_trans[ match( colnames(exp) , id_trans$cell.id ) , ]
+  return( list( mtx = exp , meta.data = meta.data ,
+                matched.id = id_trans,
+                non.metacell = aba_cells , non.metacell.reserved = min.cluster.reserved  )   )
+}
+
+sc.metacell.group <- function( object , cluster , group.by ,
+                               assay = NULL , layer = NULL,
+                               min.cluster = 50 , min.cluster.reserved = T, min.target = 50 , max.target = NULL ){
+  #
+  meta.data <- data.frame(object@meta.data)
+  
+  #
+  stat.res <- table(  meta.data[[group.by]] ,  meta.data[[cluster]] ) %>% as.data.frame()
+  colnames(stat.res) <- c( 'group' , 'cluster' , 'cell.number'  )
+  
+  aba_df <- stat.res[ stat.res$cell.number < 2, ]
+  stat.res <- stat.res[ stat.res$cell.number > 1, ]
+  stat.res$group <- as.character( stat.res$group  )
+  stat.res$cluster <- as.character( stat.res$cluster  )
+  
+  #
+  if( nrow( stat.res  ) == 0  ){
+    mtx = NULL
+    meta.data = NULL
+    matched.id = NULL
+  }else{
+    #
+    metacell_res <- lapply( unique( stat.res$group ) , function(xg){
+      #
+      x  <-  stat.res[  stat.res$group == xg , ]
+      #
+      scells <- meta.data[ which( meta.data[[group.by]] == xg & meta.data[[cluster]] %in% x$cluster ) , ] %>% rownames()
+      
+      suppressWarnings(
+        #
+        res <- sc.metacell.cluster( object = subset( object , cells = scells  )  , cluster = cluster ,
+                                    assay = assay , layer =  layer,
+                                    min.cluster = min.cluster , min.cluster.reserved = min.cluster.reserved, min.target = min.target ,
+                                    max.target = max.target
+        )
+        #
+      )
+      
+      res$meta.data$group <- xg
+      res$meta.data$cell.id <- paste(  xg, res$meta.data$cell.id , sep = '.'  )
+      
+      res$matched.id$group <- xg
+      res$matched.id$cell.id <- paste(  xg, res$matched.id$cell.id , sep = '.'  )
+      
+      colnames(res$mtx) <- paste(  xg, colnames(res$mtx) , sep = '.'  )
+      
+      return( res )
+      #
+    })
+    #
+    meta.data <- lapply( metacell_res , function(x) x$meta.data ) %>% bind_rows()
+    matched.id <- lapply( metacell_res , function(x) x$matched.id ) %>% bind_rows()
+    mtx <- lapply( metacell_res, function(x) x$mtx  )
+    mtx <- do.call( base::cbind, mtx )
+    #
+    meta.data <- meta.data[ match( colnames(mtx) , meta.data$cell.id ) , ]
+    matched.id <- matched.id[ match( colnames(mtx) , matched.id$cell.id ) , ]
+  }
+  #
+  return(  list(  mtx = mtx , meta.data = meta.data , matched.id = matched.id , non.metacell.reserved = min.cluster.reserved
+  ) )
+  
+}
+
+
 ######comm_score
 
 #' Compute LRscore
@@ -693,20 +858,26 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
 #' @description
 #' Compute cell–cell communication score (LRscore).
 #'
-#' @param exp A matrix object with cells as row names and genes as column names.
+#' @param exp A matrix or dgCMatrix object with cells as row names and genes as column names.
+#' 
+#' Recommended input: a library-size-normalized data matrix in which the total library size is consistent across individual cells, such as CPM or TPM.
 #' @param meta.data A data.frame object whose row names are identical to those of the exp parameter.
 #' @param sample The column name in meta.data that represents the sample ID.
 #' @param celltype The column name in meta.data that represents the cell type.
 #' @param LR.species Species. Options are human or mouse.
 #' @param LR.source Two options:
 #'
-#' (1) Ligand–receptor resource (with CCI or Consensus recommended). Available options include: CCI, Consensus, Baccin2019, CellCall, CellChatDB, Cellinker, CellPhoneDB, CellTalkDB, connectomeDB2020, EMBRACE, Guide2Pharma, HPMR, ICELLNET, iTALK, Kirouac2010, LRdb, Ramilowski2015, OmniPath, and MouseConsensus. For mouse, only the CCI and MouseConsensus options are available.
+#' (1) Ligand–receptor resource (with CCI or Consensus recommended). Available options include: CCI, Consensus, Baccin2019, CellCall, CellChatDB, Cellinker, CellPhoneDB, CellTalkDB, connectomeDB2020, EMBRACE, Guide2Pharma, HPMR, ICELLNET, iTALK, Kirouac2010, LRdb, Ramilowski2015, OmniPath, and MouseConsensus. 
+#' 
+#' For mouse, only the CCI and MouseConsensus options are available.
 #'
 #' (2) A data.frame object can be provided, in which the first column contains ligand gene names and the second column contains receptor gene names.
-#' @param LR.method Method for calculating LR score. Available options include: CCI, SingleCellSignalR, connectome, iTALK, NATMI, CytoTalk, cellchat, and cellphoneDB. Note that cellchat and cellPhoneDB are relatively time-consuming to run.
+#' @param LR.method Method for calculating LR score. Available options include: SingleCellSignalR, CCI, connectome, iTALK, NATMI, CytoTalk, cellchat, and cellphoneDB.
 #' @param min.cell The minimum number of cells expressing the ligand or receptor.
 #' @param min.exp The minimum expression level of ligands and receptors included in the analysis.
-#' @param min.prob The minimum proportion of cells expressing the ligand and receptor. Note: At least one of min.cell, min.exp, or min.prob must be non-zero.
+#' @param min.prob The minimum proportion of cells expressing the ligand and receptor.
+#' @param metacell.min.cells Minimum number of cells required for metacell construction. Clusters containing fewer cells than this threshold will not undergo metacell construction and will retain their original values.
+#' @param metacell.max.cells Maximum number of cells allowed in the largest cluster after metacell construction.
 #' @param threads Number of cores used for parallel computation. By default, the maximum computing resources are used.
 #'
 #' @returns A list object.
@@ -725,10 +896,14 @@ liana_lrscore <- function( exp,meta.data,sample,celltype, lr.database ,LR.specie
 #'
 scoreLR <- function( exp,meta.data,sample,celltype,
                      LR.species = 'human', LR.source = 'Consensus', LR.method = 'SingleCellSignalR',
-                     min.cell = 10, min.exp = 0.1, min.prob = 0.3,
+                     min.cell = 4, min.exp = 0.1, min.prob = 0.3,
+                     metacell.min.cells = 20, metacell.max.cells = 100 ,
                      threads = NULL
 ){
   ###
+  if( !identical( rownames(exp), rownames(meta.data) ) ){
+    stop( simpleError( 'Mismatch between row names of exp and meta.data.'  ) )
+  }
   run.start = Sys.time()
   suppressWarnings(
     suppressMessages({
@@ -739,6 +914,7 @@ scoreLR <- function( exp,meta.data,sample,celltype,
       library(parallel)
       library(Seurat)
       library(SingleCellExperiment)
+      library(Matrix)
     })
   )
   
@@ -756,12 +932,7 @@ scoreLR <- function( exp,meta.data,sample,celltype,
   lr.genes <- unique(  lr.database$ligand , lr.database$receptor  ) %>% unique()
   
   ###exp,meta.data
-  exp <- exp[,  colnames(exp) %in% lr.genes   ] %>% as.matrix()
-  if( !identical( rownames(exp), rownames(meta.data) ) ){
-    stop( simpleError( 'Mismatch between row names of exp and meta.data.'  ) )
-  }
-  
-  ###detect
+  exp <- exp[,  colnames(exp) %in% lr.genes   ] %>% Matrix::Matrix( sparse = T )
   meta.data <- data.frame( meta.data )
   samples <-  meta.data[[sample]] %>% unique() %>% as.character()
   celltypes <-  meta.data[[celltype]] %>% unique() %>% as.character()
@@ -770,6 +941,30 @@ scoreLR <- function( exp,meta.data,sample,celltype,
   message( ">>> Running..." )
   message( '[ Step 1/2 | ', format(Sys.time(), "%Y-%m-%d %H:%M:%S") , ' ] ','Checking the expression profiles of ligands and receptors.'  )
   
+  ###metacell
+  exp <- Matrix::t(exp)
+  tsc <- Seurat::CreateSeuratObject( counts = exp , min.cells = 0 , min.features = 0   )
+  tsc$group <- meta.data[[sample]]  %>% as.character()
+  tsc$cell <- meta.data[[celltype]]  %>% as.character()
+  meta_sc <- sc.metacell.group( object = tsc , cluster = 'cell' , group.by = 'group', min.cluster = max( 20 , metacell.min.cells ) ,
+                                min.cluster.reserved = T , min.target = max( 20 , metacell.min.cells ) , max.target = metacell.max.cells )
+  rm(tsc)
+  gc()
+  #
+  exp <- meta_sc[["mtx"]] %>% as.matrix() %>% t()
+  new.meta <- meta_sc[["matched.id"]]
+  new.meta <- lapply( rownames(exp)  , function(x){
+    #
+    ss = new.meta$raw.id[ new.meta$cell.id == x ]
+    sm = meta.data[ ss[1] ,  ] 
+    #
+    return( sm )
+  }) %>% bind_rows()
+  rownames(new.meta) <- rownames(exp)
+  colnames(new.meta) <- colnames(meta.data)
+  meta.data <- new.meta
+  
+  ###detect
   detect_exp <- wb.smc( colnames(exp) ,function(gene){
     level1 <-  lapply(samples, function(m){
       level2 <- lapply(celltypes, function(n){
@@ -906,3 +1101,5 @@ scoreLR <- function( exp,meta.data,sample,celltype,
     )
   ) )
 }
+
+

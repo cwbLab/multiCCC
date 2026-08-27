@@ -12,14 +12,18 @@ scoreLR(
   LR.species = "human",
   LR.source = "Consensus",
   LR.method = "SingleCellSignalR",
-  min.cell = 10,
+  min.cell = 4,
   min.exp = 0.1,
   min.prob = 0.3,
+  metacell.min.cells = 20,
+  metacell.max.cells = 100,
   threads = NULL
 )
 }
 \arguments{
-\item{exp}{A matrix object with cells as row names and genes as column names.}
+\item{exp}{A matrix or dgCMatrix object with cells as row names and genes as column names.
+
+Recommended input: a library-size-normalized data matrix in which the total library size is consistent across individual cells, such as CPM or TPM.}
 
 \item{meta.data}{A data.frame object whose row names are identical to those of the exp parameter.}
 
@@ -31,17 +35,23 @@ scoreLR(
 
 \item{LR.source}{Two options:
 
-(1) Ligand–receptor resource (with CCI or Consensus recommended). Available options include: CCI, Consensus, Baccin2019, CellCall, CellChatDB, Cellinker, CellPhoneDB, CellTalkDB, connectomeDB2020, EMBRACE, Guide2Pharma, HPMR, ICELLNET, iTALK, Kirouac2010, LRdb, Ramilowski2015, OmniPath, and MouseConsensus. For mouse, only the CCI and MouseConsensus options are available.
+(1) Ligand–receptor resource (with CCI or Consensus recommended). Available options include: CCI, Consensus, Baccin2019, CellCall, CellChatDB, Cellinker, CellPhoneDB, CellTalkDB, connectomeDB2020, EMBRACE, Guide2Pharma, HPMR, ICELLNET, iTALK, Kirouac2010, LRdb, Ramilowski2015, OmniPath, and MouseConsensus.
+
+For mouse, only the CCI and MouseConsensus options are available.
 
 (2) A data.frame object can be provided, in which the first column contains ligand gene names and the second column contains receptor gene names.}
 
-\item{LR.method}{Method for calculating LR score. Available options include: CCI, SingleCellSignalR, connectome, iTALK, NATMI, CytoTalk, cellchat, and cellphoneDB. Note that cellchat and cellPhoneDB are relatively time-consuming to run.}
+\item{LR.method}{Method for calculating LR score. Available options include: SingleCellSignalR, CCI, connectome, iTALK, NATMI, CytoTalk, cellchat, and cellphoneDB.}
 
 \item{min.cell}{The minimum number of cells expressing the ligand or receptor.}
 
 \item{min.exp}{The minimum expression level of ligands and receptors included in the analysis.}
 
-\item{min.prob}{The minimum proportion of cells expressing the ligand and receptor. Note: At least one of min.cell, min.exp, or min.prob must be non-zero.}
+\item{min.prob}{The minimum proportion of cells expressing the ligand and receptor.}
+
+\item{metacell.min.cells}{Minimum number of cells required for metacell construction. Clusters containing fewer cells than this threshold will not undergo metacell construction and will retain their original values.}
+
+\item{metacell.max.cells}{Maximum number of cells allowed in the largest cluster after metacell construction.}
 
 \item{threads}{Number of cores used for parallel computation. By default, the maximum computing resources are used.}
 }

@@ -6,10 +6,16 @@
     devtools::install_github("cwbLab/multiCCC")
 
 ## Quick Start
-`multiCCC` currently supports scRNA-seq data from both human and mouse.
+`multiCCC` currently supports scRNA-seq data from both human and mouse. 
+Recommended input: 
+1. A library-size-normalized expression matrix in which the total library size is consistent across individual cells, such as CPM or TPM.
+2. A metadata matrix should contain at least three columns: a sample ID column, a cell type column, and a grouping information column. The row names of the metadata matrix should correspond to those of the expression matrix.
 
 ### 1. Evaluate cell–cell communication scores (LRscore)
+	
+	library(multiCCC)
 	data( "CCC.test.data" )
+	
 	LRscore <- scoreLR( exp = t( CCC.test.data$exp ) ,
 						meta.data = CCC.test.data$meta ,
 						LR.species = 'human' ,
