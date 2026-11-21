@@ -60,7 +60,10 @@ Note: The filterCCC function simultaneously applies filtering to all analysis re
 
 #### 4.1. Circos plot
 	plot_circos( res = filter.binary$binary.res , p.threshold = 1 ,LR =T  )
-![Screenshot](https://github.com/cwbLab/multiCCC/blob/main/data/test_circos.png)
+
+<p align="center">
+  <img width="200"  src="https://github.com/cwbLab/multiCCC/blob/main/data/test_circos.png">
+</p>
 
 #### 4.2. Heatmap plot
 	plot_heatmap_cell( res = filter.binary$binary.res , 
@@ -69,31 +72,44 @@ Note: The filterCCC function simultaneously applies filtering to all analysis re
 	plot_heatmap_cell( res = filter.binary$binary.res , 
 					   max.group = "O" , merge = F ,trend = "Down",
 					   p.threshold = 1 ,x.title = 8, y.title = 8)
-![Screenshot](https://github.com/cwbLab/multiCCC/blob/main/data/test_heatmap_cell.png)
+
+<p align="center">
+  <img width="500"  src="https://github.com/cwbLab/multiCCC/blob/main/data/test_heatmap_cell.png">
+</p>
+
 
 	plot_heatmap_lr( res = filter.binary$binary.res , 
 					 max.group = "O" , merge = T , 
 					 p.threshold = 1 ,aspect.ratio = 0.6 )
-![Screenshot](https://github.com/cwbLab/multiCCC/blob/main/data/test_heatmap_lr.png)
+<p align="center">
+  <img width="400"  src="https://github.com/cwbLab/multiCCC/blob/main/data/test_heatmap_lr.png">
+</p>
+
 
 #### 4.3. Network plot
 	plot_network( res = filter.binary$binary.res , p.threshold = 1 , merge = F ,
 				  node.fill = "#FFFF3E",link.color = c("#E61A33", "#1AB2FF"),
 				  link.alpha = 0.5 )
-![Screenshot](https://github.com/cwbLab/multiCCC/blob/main/data/test_network.png)
+<p align="center">
+  <img width="400"  src="https://github.com/cwbLab/multiCCC/blob/main/data/test_network.png">
+</p>
 
 #### 4.4. Dot plot
 	plot_dot( res = filter.anova$anova.res ,
           threshold =  1 ,strip.text = 12 ,dot.max = 7 , legend.position = "right",
           x.text = 12,y.text = 12 )
-![Screenshot](https://github.com/cwbLab/multiCCC/blob/main/data/test_dot.png)
+<p align="center">
+  <img width="500"  src="https://github.com/cwbLab/multiCCC/blob/main/data/test_dot.png">
+</p>
 
 #### 4.5. Line plot
 	ccc.glm <- multiCCC( data = LRscore , glm.column = 'time' )
 	filter.glm <- filterCCC(ccc.glm ,ligand.filter = NULL,receptor.filter = NULL )
 	plot_line( res = filter.glm$glm.res,
 			   CCC.ID = "cell1_cell3.ADAM15_ITGAV" , p.adj = F )
-![Screenshot](https://github.com/cwbLab/multiCCC/blob/main/data/test_line.png)
+<p align="center">
+  <img width="200"  src="https://github.com/cwbLab/multiCCC/blob/main/data/test_line.png">
+</p>
 
 ## Contact
 For any technical questions, please contact Wenbo Chen (wenbo_chen@bjmu.edu.cn).
