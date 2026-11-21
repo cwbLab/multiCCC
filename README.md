@@ -2,7 +2,7 @@
 `multiCCC` is an R package designed to test the association between cell–cell communication (CCC) and phenotypes across multiple contexts.
 
 <p align="center">
-  <img width="400"  src="https://github.com/cwbLab/multiCCC/blob/main/data/pipeline.png">
+  <img width="500"  src="https://github.com/cwbLab/multiCCC/blob/main/data/pipeline.png">
 </p>
 
 ## Install
@@ -82,7 +82,7 @@ Note: The filterCCC function simultaneously applies filtering to all analysis re
 					 max.group = "O" , merge = T , 
 					 p.threshold = 1 ,aspect.ratio = 0.6 )
 <p align="center">
-  <img width="400"  src="https://github.com/cwbLab/multiCCC/blob/main/data/test_heatmap_lr.png">
+  <img width="300"  src="https://github.com/cwbLab/multiCCC/blob/main/data/test_heatmap_lr.png">
 </p>
 
 
